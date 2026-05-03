@@ -25,6 +25,15 @@ class DocentesModule {
         this.currentAudioBase64 = null;
         this.isRecording = false;
 
+        // Preview dinámico del nombre en el texto de voz
+        const nombreInput = document.getElementById('docente-nombre');
+        const vozPreview = document.getElementById('voz-nombre-preview');
+        if (nombreInput && vozPreview) {
+            nombreInput.addEventListener('input', (e) => {
+                vozPreview.innerText = e.target.value.trim() || '[Tu Nombre]';
+            });
+        }
+
         // Cargar lista inicial
         this.loadDocentes();
     }
@@ -35,6 +44,7 @@ class DocentesModule {
             this.formContainer.style.display = 'block';
             if (reset) {
                 this.form.reset();
+                document.getElementById('docente-nombre').dispatchEvent(new Event('input'));
                 document.getElementById('docente-id').value = '';
                 document.getElementById('docente-mongo-id').value = '';
                 this.resetAudioUI();
@@ -196,7 +206,9 @@ class DocentesModule {
             if (docente) {
                 document.getElementById('docente-id').value = docente.id || '';
                 document.getElementById('docente-mongo-id').value = docente._id || '';
-                document.getElementById('docente-nombre').value = docente.nombre;
+                const nameInput = document.getElementById('docente-nombre');
+                nameInput.value = docente.nombre;
+                nameInput.dispatchEvent(new Event('input'));
                 document.getElementById('docente-cargo').value = docente.cargo;
                 document.getElementById('docentes-form-title').innerText = 'Editar Docente';
                 
