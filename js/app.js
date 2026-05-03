@@ -5,7 +5,7 @@
 window.ENV = {
     // Cuando subas tu backend a Render, cambia esta URL por la tuya. 
     // Ejemplo: 'https://mi-backend-cte.onrender.com'
-    API_URL: 'http://localhost:3001'
+    API_URL: 'https://gestion-cte.onrender.com'
 };
 
 class App {
