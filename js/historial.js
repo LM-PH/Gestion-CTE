@@ -93,11 +93,14 @@ class HistorialModule {
                             | Estado: <span style="color:${estadoColor}; font-weight:600;">${estadoText}</span>
                         </p>
                     </div>
-                    <div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
                         ${tieneActa 
                             ? `<button class="btn btn-primary" onclick="historialModule.viewActa(${actas[0].id}, ${r.id})"><i class="fa-solid fa-file-signature"></i> Editar/Ver Acta</button>`
-                            : `<span style="color: #ef4444; font-size: 0.85rem;"><i class="fa-solid fa-triangle-exclamation"></i> Error: Acta no generada</span>`
+                            : `<span style="color: #ef4444; font-size: 0.85rem; margin-right: 0.5rem;"><i class="fa-solid fa-triangle-exclamation"></i> Error: Acta no generada</span>`
                         }
+                        <button class="btn" style="background: transparent; color: #ef4444; padding: 0.5rem; border: 1px solid #fee2e2;" onclick="historialModule.deleteReunion(${r.id})" title="Eliminar Reunión">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
                 `;
                 this.historialList.appendChild(card);
@@ -106,6 +109,40 @@ class HistorialModule {
             console.error("Error cargando el historial:", error);
         }
     }
+
+    async deleteReunion(reunionId) {
+        if (!confirm('¿Estás seguro de que deseas eliminar esta reunión y toda su información (acta, audios, etc.)? Esta acción no se puede deshacer.')) return;
+        
+        try {
+            // 1. Eliminar de 'reuniones'
+            await localDB.delete('reuniones', reunionId);
+            
+            // 2. Eliminar acta asociada
+            const actas = await localDB.getByIndex('actas', 'reunionId', reunionId);
+            for (let a of actas) {
+                await localDB.delete('actas', a.id);
+            }
+            
+            // 3. Eliminar segmentos de audio asociados
+            const segmentos = await localDB.getByIndex('segmentos', 'reunionId', reunionId);
+            for (let s of segmentos) {
+                await localDB.delete('segmentos', s.id);
+            }
+            
+            // 4. Eliminar puntos de orden del día asociados
+            const ordenDia = await localDB.getByIndex('ordenDia', 'reunionId', reunionId);
+            for (let o of ordenDia) {
+                await localDB.delete('ordenDia', o.id);
+            }
+
+            alert('Reunión eliminada exitosamente.');
+            this.renderHistorialList();
+        } catch (err) {
+            console.error("Error al eliminar la reunión:", err);
+            alert('Hubo un error al intentar eliminar la reunión.');
+        }
+    }
+
 
     async viewActa(actaId, reunionId) {
         try {
