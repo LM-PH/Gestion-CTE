@@ -22,6 +22,9 @@ class HistorialModule {
         this.actaProblematicasInput = document.getElementById('acta-problematicas-input');
         this.actaProblematicasPrint = document.getElementById('acta-problematicas-print');
         
+        this.actaResumenInput = document.getElementById('acta-resumen-input');
+        this.actaResumenPrint = document.getElementById('acta-resumen-print');
+        
         this.acuerdosListTbody = document.getElementById('acta-acuerdos-list');
         
         this.actaAudios = document.getElementById('acta-audios');
@@ -139,7 +142,7 @@ class HistorialModule {
             this.renderHistorialList();
         } catch (err) {
             console.error("Error al eliminar la reunión:", err);
-            alert('Hubo un error al intentar eliminar la reunión.');
+            alert('Hubo un error al intentar eliminar la reunión: ' + (err.message || err));
         }
     }
 
@@ -162,6 +165,7 @@ class HistorialModule {
             this.actaParticipantesInput.value = acta.participantes.join('\n');
             this.actaOrdenInput.value = acta.ordenDia.join('\n');
             this.actaProblematicasInput.value = acta.problematicas.join('\n');
+            this.actaResumenInput.value = acta.resumen || '';
             
             this.currentAcuerdos = acta.acuerdosList;
             this.renderAcuerdosTable();
@@ -239,6 +243,9 @@ class HistorialModule {
             }
             if (data.problematicas && data.problematicas.length > 0) {
                 this.actaProblematicasInput.value = data.problematicas.join('\n');
+            }
+            if (data.resumenGeneral) {
+                this.actaResumenInput.value = data.resumenGeneral;
             }
             if (data.acuerdos && data.acuerdos.length > 0) {
                 data.acuerdos.forEach(ac => {
@@ -384,6 +391,8 @@ class HistorialModule {
         const probText = this.actaProblematicasInput.value;
         this.actaProblematicasPrint.innerHTML = probText.split('\n').filter(o => o.trim() !== '').map(o => `<li>${o}</li>`).join('');
 
+        this.actaResumenPrint.innerText = this.actaResumenInput.value;
+
         // Lógica de generación de firmas dinámicas
         const firmasGrid = document.getElementById('acta-firmas-grid');
         const numFirmasInput = document.getElementById('acta-numero-firmas');
@@ -427,6 +436,8 @@ class HistorialModule {
                 
                 const rawProb = this.actaProblematicasInput.value.split('\n').map(l => l.trim()).filter(l => l !== '');
                 acta.problematicas = rawProb;
+
+                acta.resumen = this.actaResumenInput.value;
 
                 acta.acuerdosList = this.currentAcuerdos;
 

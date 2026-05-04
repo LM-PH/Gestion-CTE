@@ -197,7 +197,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                     fecha: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // en 15 días
                 }
             ],
-            resumenGeneral: "La sesión transcurrió con enfoque en los resultados diagnósticos y la participación parental. Se escucharon propuestas puntuales de varios docentes."
+            resumenGeneral: "DESARROLLO DE LA SESIÓN:\n\nEl Director inició la reunión dando la bienvenida al personal y presentando el propósito central del Consejo Técnico Escolar. Se analizó minuciosamente el reporte de resultados del primer periodo, destacando avances significativos en el área de cálculo mental, aunque persistiendo retos en la producción de textos narrativos.\n\nDurante el intercambio de opiniones, el cuerpo docente coincidió en que la falta de acompañamiento en casa es un factor determinante en el rezago de algunos alumnos. Se discutieron estrategias para involucrar más activamente a los padres de familia en el proceso educativo, incluyendo talleres de sensibilización y reportes semanales de desempeño.\n\nFinalmente, se establecieron los compromisos para el próximo mes, centrados en el reforzamiento de la lecto-escritura y el seguimiento puntual de alumnos con alerta de reprobación. La sesión concluyó en un clima de colaboración y compromiso profesional."
         };
 
         res.json({ success: true, data: iaResponse });
