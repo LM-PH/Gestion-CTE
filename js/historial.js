@@ -19,9 +19,6 @@ class HistorialModule {
         this.actaOrdenInput = document.getElementById('acta-orden-input');
         this.actaOrdenPrint = document.getElementById('acta-orden-print');
         
-        this.actaProblematicasInput = document.getElementById('acta-problematicas-input');
-        this.actaProblematicasPrint = document.getElementById('acta-problematicas-print');
-        
         this.actaResumenInput = document.getElementById('acta-resumen-input');
         this.actaResumenPrint = document.getElementById('acta-resumen-print');
         
@@ -154,7 +151,7 @@ class HistorialModule {
 
             // Migraciones
             if (!acta.acuerdosList) acta.acuerdosList = [];
-            if (!acta.problematicas) acta.problematicas = [];
+            // if (!acta.problematicas) acta.problematicas = []; // Removido
 
             this.actaIdInput.value = acta.id;
             this.actaIdInput.dataset.reunionId = reunionId;
@@ -164,7 +161,7 @@ class HistorialModule {
             // Textareas
             this.actaParticipantesInput.value = acta.participantes.join('\n');
             this.actaOrdenInput.value = acta.ordenDia.join('\n');
-            this.actaProblematicasInput.value = acta.problematicas.join('\n');
+            // this.actaProblematicasInput.value = acta.problematicas.join('\n'); // Removido
             this.actaResumenInput.value = acta.resumen || '';
             
             this.currentAcuerdos = acta.acuerdosList;
@@ -241,9 +238,11 @@ class HistorialModule {
             if (data.temas && data.temas.length > 0) {
                 this.actaOrdenInput.value = data.temas.join('\n');
             }
+            /* Removido
             if (data.problematicas && data.problematicas.length > 0) {
                 this.actaProblematicasInput.value = data.problematicas.join('\n');
             }
+            */
             if (data.resumenGeneral) {
                 this.actaResumenInput.value = data.resumenGeneral;
             }
@@ -388,8 +387,8 @@ class HistorialModule {
         const ordenText = this.actaOrdenInput.value;
         this.actaOrdenPrint.innerHTML = ordenText.split('\n').filter(o => o.trim() !== '').map(o => `<li>${o}</li>`).join('');
 
-        const probText = this.actaProblematicasInput.value;
-        this.actaProblematicasPrint.innerHTML = probText.split('\n').filter(o => o.trim() !== '').map(o => `<li>${o}</li>`).join('');
+        // const probText = this.actaProblematicasInput.value; // Removido
+        // this.actaProblematicasPrint.innerHTML = probText.split('\n').filter(o => o.trim() !== '').map(o => `<li>${o}</li>`).join('');
 
         this.actaResumenPrint.innerText = this.actaResumenInput.value;
 
@@ -434,8 +433,8 @@ class HistorialModule {
                 const rawOrden = this.actaOrdenInput.value.split('\n').map(l => l.trim()).filter(l => l !== '');
                 acta.ordenDia = rawOrden.length > 0 ? rawOrden : ['General'];
                 
-                const rawProb = this.actaProblematicasInput.value.split('\n').map(l => l.trim()).filter(l => l !== '');
-                acta.problematicas = rawProb;
+                // const rawProb = this.actaProblematicasInput.value.split('\n').map(l => l.trim()).filter(l => l !== ''); // Removido
+                // acta.problematicas = rawProb;
 
                 acta.resumen = this.actaResumenInput.value;
 
