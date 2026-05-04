@@ -265,6 +265,29 @@ class ReunionesModule {
         reunion.duracionTotal = this.secondsElapsed;
         await localDB.update('reuniones', reunion);
         
+        // --- NUEVO: Generar Acta Borrador Automáticamente ---
+        try {
+            const docentes = await localDB.getAll('docentes');
+            const participantes = docentes.map(d => d.nombre);
+            const ordenDia = this.activeAgendaItems.map(a => a.titulo);
+
+            const nuevaActa = {
+                reunionId: reunion.id,
+                fecha: reunion.fecha,
+                escuela: 'Escuela Primaria', // Puede ser editable luego
+                participantes: participantes,
+                ordenDia: ordenDia,
+                problematicas: [],
+                acuerdosList: [],
+                estado: 'borrador',
+                syncStatus: 'pending_add'
+            };
+            await localDB.add('actas', nuevaActa);
+        } catch (err) {
+            console.error("Error generando acta borrador:", err);
+        }
+        // --------------------------------------------------
+
         if (this.audioStream) {
             this.audioStream.getTracks().forEach(track => track.stop());
             this.audioStream = null;
