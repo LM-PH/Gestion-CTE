@@ -158,8 +158,13 @@ app.post('/api/actas', async (req, res) => {
     }
 });
 // ==========================================
-// ENDPOINT IA - PROCESAMIENTO DE AUDIO
+// ENDPOINT IA - PROCESAMIENTO DE AUDIO (GEMINI 1.5 PRO)
 // ==========================================
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// Inicializar Google AI con la llave proporcionada por el usuario
+const genAI = new GoogleGenerativeAI("AIzaSyAexAzbVjOgHSJqRnkrOSh9sdijrDaEaV4");
+
 app.post('/api/procesar-audio', async (req, res) => {
     try {
         const { reunionId, segmentos } = req.body;
@@ -168,50 +173,70 @@ app.post('/api/procesar-audio', async (req, res) => {
             return res.status(400).json({ error: 'No hay segmentos de audio para procesar' });
         }
 
-        console.log(`[IA] Recibidos ${segmentos.length} segmentos para reunión ${reunionId}. Iniciando procesamiento...`);
+        console.log(`[IA] Iniciando procesamiento real con Gemini 1.5 Pro para reunión ${reunionId}...`);
         
-        // AQUÍ IRÍA LA INTEGRACIÓN REAL CON WHISPER U OTRA API DE STT
-        // Se unirían los base64, se enviarían a la API, y el texto resultante iría a un LLM (ej. GPT-4 o Gemini).
-        
-        // Simulación de retraso de red y procesamiento de modelo (4 segundos)
-        await new Promise(resolve => setTimeout(resolve, 4000));
-        
-        // Extracción mockeada basada en metadatos para que el usuario sienta la respuesta adaptada
-        // --- LÓGICA DE SIMULACIÓN DINÁMICA ---
-        // Para que no "alucine", vamos a construir el resumen basándonos en los títulos que el usuario grabó.
-        const titulos = segmentos.map(s => s.ordenDiaTitulo || 'Asuntos Generales');
-        
-        let resumenDetallado = "DESARROLLO DE LA SESIÓN (Basado en grabaciones):\n\n";
-        
-        titulos.forEach((titulo, index) => {
-            resumenDetallado += `${index + 1}. SOBRE ${titulo.toUpperCase()}:\n`;
-            resumenDetallado += `Se realizó la grabación correspondiente a este punto del orden del día. `;
-            if (titulo.toLowerCase().includes('bienvenida') || titulo.toLowerCase().includes('apertura')) {
-                resumenDetallado += "El Director dio la bienvenida formal, agradeciendo la asistencia puntual de los docentes y marcando los objetivos de la sesión.\n\n";
-            } else if (titulo.toLowerCase().includes('asuntos') || titulo.toLowerCase().includes('generales')) {
-                resumenDetallado += "Varios docentes tomaron la palabra para exponer situaciones particulares de sus grupos y compartir avisos administrativos.\n\n";
-            } else {
-                resumenDetallado += "El colectivo docente participó activamente exponiendo puntos de vista y propuestas de mejora sobre este tema.\n\n";
-            }
+        // 1. Preparar el modelo
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-pro",
+            systemInstruction: `Eres un asistente secretario experto en reuniones de Consejo Técnico Escolar (CTE). 
+            Tu objetivo es escuchar los audios proporcionados y generar una redacción profesional, detallada y fiel a lo que se dijo.
+            
+            REGLAS CRÍTICAS:
+            1. NO INVENTES información. Si algo no se menciona en el audio, no lo incluyas.
+            2. DESARROLLO DE LA SESIÓN: Debe ser narrativo y cronológico. Menciona intervenciones específicas ("El director dio la bienvenida...", "La maestra X comentó sobre la lectura...", etc.).
+            3. ACUERDOS Y COMPROMISOS: Extrae solo los acuerdos explícitos. Si no hubo acuerdos, deja la lista vacía o indica 'No se establecieron acuerdos'.
+            4. FORMATO: Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
+               {
+                 "temas": ["Tema 1", "Tema 2"],
+                 "resumenGeneral": "Texto largo con el desarrollo detallado de la sesión...",
+                 "acuerdos": [
+                   {"texto": "Descripción del acuerdo", "responsable": "Nombre", "fecha": "Fecha o Pendiente"}
+                 ]
+               }`
         });
 
-        resumenDetallado += "CIERRE:\nSe dio por concluida la toma de evidencias de audio para este bloque de la sesión.";
+        // 2. Convertir segmentos base64 a partes de contenido para Gemini
+        const audioParts = segmentos.map(seg => {
+            // Extraer solo la data base64 (quitando el prefijo data:audio/webm;base64,)
+            const base64Data = seg.audioData.split(',')[1];
+            return {
+                inlineData: {
+                    data: base64Data,
+                    mimeType: "audio/webm"
+                }
+            };
+        });
 
-        const iaResponse = {
-            temas: [...new Set(titulos)],
-            acuerdos: [], // Dejamos vacío para no alucinar acuerdos que no existen
-            resumenGeneral: resumenDetallado
-        };
+        // 3. Generar contenido
+        const prompt = "Analiza estos segmentos de audio de la reunión de CTE. Transcribe lo que dicen los docentes y el director, y genera el resumen detallado y los acuerdos en el formato JSON solicitado.";
+        
+        const result = await model.generateContent([prompt, ...audioParts]);
+        const response = await result.response;
+        let text = response.text();
+        
+        // Limpiar posible formato markdown del JSON si el modelo lo incluye
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        try {
+            const iaData = JSON.parse(text);
+            console.log(`[IA] Procesamiento completado exitosamente para reunión ${reunionId}`);
+            res.json({ success: true, data: iaData });
+        } catch (parseError) {
+            console.error("Error parseando JSON de Gemini:", text);
+            // Si falla el parseo, intentamos enviar el texto plano como resumen
+            res.json({ 
+                success: true, 
+                data: {
+                    temas: ["Resumen de Sesión"],
+                    resumenGeneral: text,
+                    acuerdos: []
+                }
+            });
+        }
 
-        // NOTA: Para integración real con OpenAI/Whisper:
-        // 1. Instalar 'openai'
-        // 2. Usar openai.audio.transcriptions.create({ file: audioFile, model: "whisper-1" })
-        // 3. Pasar el texto a GPT-4 para el resumen final.
-
-        res.json({ success: true, data: iaResponse });
     } catch (error) {
-        console.error("Error en procesamiento IA:", error);
-        res.status(500).json({ error: 'Error interno en el motor de IA' });
+        console.error("Error en procesamiento Gemini:", error);
+        res.status(500).json({ error: 'Error al procesar el audio con Google Gemini API' });
     }
 });
 
