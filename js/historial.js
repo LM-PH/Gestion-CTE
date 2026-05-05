@@ -230,7 +230,10 @@ class HistorialModule {
                 body: JSON.stringify({ reunionId, segmentos })
             });
 
-            if (!response.ok) throw new Error("Fallo en la comunicación con IA");
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Fallo en la comunicación con IA");
+            }
 
             const { data } = await response.json();
             
