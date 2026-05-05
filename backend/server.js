@@ -177,28 +177,36 @@ app.post('/api/procesar-audio', async (req, res) => {
         await new Promise(resolve => setTimeout(resolve, 4000));
         
         // Extracción mockeada basada en metadatos para que el usuario sienta la respuesta adaptada
-        const temasTratados = segmentos.map(s => s.ordenDiaTitulo || 'Asuntos Generales').filter((v, i, a) => a.indexOf(v) === i);
+        // --- LÓGICA DE SIMULACIÓN DINÁMICA ---
+        // Para que no "alucine", vamos a construir el resumen basándonos en los títulos que el usuario grabó.
+        const titulos = segmentos.map(s => s.ordenDiaTitulo || 'Asuntos Generales');
         
+        let resumenDetallado = "DESARROLLO DE LA SESIÓN (Basado en grabaciones):\n\n";
+        
+        titulos.forEach((titulo, index) => {
+            resumenDetallado += `${index + 1}. SOBRE ${titulo.toUpperCase()}:\n`;
+            resumenDetallado += `Se realizó la grabación correspondiente a este punto del orden del día. `;
+            if (titulo.toLowerCase().includes('bienvenida') || titulo.toLowerCase().includes('apertura')) {
+                resumenDetallado += "El Director dio la bienvenida formal, agradeciendo la asistencia puntual de los docentes y marcando los objetivos de la sesión.\n\n";
+            } else if (titulo.toLowerCase().includes('asuntos') || titulo.toLowerCase().includes('generales')) {
+                resumenDetallado += "Varios docentes tomaron la palabra para exponer situaciones particulares de sus grupos y compartir avisos administrativos.\n\n";
+            } else {
+                resumenDetallado += "El colectivo docente participó activamente exponiendo puntos de vista y propuestas de mejora sobre este tema.\n\n";
+            }
+        });
+
+        resumenDetallado += "CIERRE:\nSe dio por concluida la toma de evidencias de audio para este bloque de la sesión.";
+
         const iaResponse = {
-            temas: temasTratados,
-            problematicas: [
-                "Bajo nivel de comprensión lectora detectado en grupos de primer grado tras la evaluación diagnóstica.",
-                "Baja asistencia a las juntas convocadas por la asociación de padres de familia."
-            ],
-            acuerdos: [
-                {
-                    texto: "Implementar rutina diaria de 15 minutos de lectura compartida al inicio de la jornada.",
-                    responsable: "Todos los docentes frente a grupo",
-                    fecha: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // en 7 días
-                },
-                {
-                    texto: "Enviar citatorios formales para asamblea general de padres enfatizando obligatoriedad.",
-                    responsable: "Dirección Escolar",
-                    fecha: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // en 15 días
-                }
-            ],
-            resumenGeneral: "DESARROLLO DE LA SESIÓN:\n\n1. BIENVENIDA Y APERTURA:\nEl Director del plantel inició la sesión a la hora programada, extendiendo una cordial bienvenida a todo el colectivo docente. Expresó el reconocimiento al esfuerzo diario y subrayó la importancia de este espacio para la reflexión pedagógica profunda.\n\n2. INTERVENCIONES DEL COLECTIVO:\n- La Mtra. Adriana (6to Grado) intervino para compartir su preocupación sobre la fluidez lectora en su grupo, sugiriendo la implementación de 'Lecturas de 5 Minutos' al inicio de cada jornada.\n- El Mtro. Roberto (Educación Física) propuso integrar dinámicas de movimiento que refuercen conceptos matemáticos básicos, recibiendo el apoyo de los docentes de primer ciclo.\n- La Mtra. Leticia destacó la mejora en la puntualidad de los alumnos tras las pláticas con padres de familia realizadas el mes anterior.\n\n3. ANÁLISIS DE RESULTADOS:\nEl colectivo revisó las gráficas de aprovechamiento escolar. Se observó una tendencia positiva en el área de ciencias, pero se identificó la necesidad de fortalecer el pensamiento lógico-matemático de manera transversal.\n\n4. CIERRE Y PRÓXIMOS PASOS:\nEl Director agradeció las aportaciones y motivó a los docentes a seguir documentando sus experiencias exitosas. La sesión concluyó con la lectura de los compromisos adquiridos y la firma del acta correspondiente."
+            temas: [...new Set(titulos)],
+            acuerdos: [], // Dejamos vacío para no alucinar acuerdos que no existen
+            resumenGeneral: resumenDetallado
         };
+
+        // NOTA: Para integración real con OpenAI/Whisper:
+        // 1. Instalar 'openai'
+        // 2. Usar openai.audio.transcriptions.create({ file: audioFile, model: "whisper-1" })
+        // 3. Pasar el texto a GPT-4 para el resumen final.
 
         res.json({ success: true, data: iaResponse });
     } catch (error) {
