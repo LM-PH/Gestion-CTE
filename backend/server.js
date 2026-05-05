@@ -162,7 +162,7 @@ app.post('/api/actas', async (req, res) => {
 // ==========================================
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Inicializar Google AI con la llave desde las variables de entorno
+// Inicializar Google AI con la llave desde las variables de entorno (Forzando v1 estable)
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
 app.post('/api/procesar-audio', async (req, res) => {
@@ -178,10 +178,10 @@ app.post('/api/procesar-audio', async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        // 1. Preparar el modelo con el nombre oficial más reciente
+        // 1. Preparar el modelo forzando v1 estable
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash-latest"
-        });
+            model: "gemini-1.5-flash"
+        }, { apiVersion: "v1" });
 
         // 2. Convertir segmentos
         const audioParts = segmentos.map((seg, index) => {
