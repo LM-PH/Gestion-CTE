@@ -267,7 +267,7 @@ class HistorialModule {
 
         } catch (err) {
             console.error("Error procesando con IA:", err);
-            alert("Hubo un error al conectar con el servicio de IA. Inténtalo más tarde.");
+            alert("Error: " + err.message);
         } finally {
             this.btnIaMagic.innerHTML = originalText;
             this.btnIaMagic.disabled = false;
