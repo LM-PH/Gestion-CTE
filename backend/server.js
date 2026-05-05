@@ -178,10 +178,10 @@ app.post('/api/procesar-audio', async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        // 1. Preparar el modelo forzando v1 estable
+        // 1. Preparar el modelo (Volviendo a v1beta con nombre estándar)
         const model = genAI.getGenerativeModel({ 
             model: "gemini-1.5-flash"
-        }, { apiVersion: "v1" });
+        });
 
         // 2. Convertir segmentos
         const audioParts = segmentos.map((seg, index) => {
