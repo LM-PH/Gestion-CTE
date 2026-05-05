@@ -232,7 +232,8 @@ class HistorialModule {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || "Fallo en la comunicación con IA");
+                const fullError = errorData.details ? `${errorData.error} (${errorData.details})` : errorData.error;
+                throw new Error(fullError || "Fallo en la comunicación con IA");
             }
 
             const { data } = await response.json();
