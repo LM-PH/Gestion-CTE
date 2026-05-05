@@ -168,87 +168,64 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 app.post('/api/procesar-audio', async (req, res) => {
     try {
         const { reunionId, segmentos } = req.body;
-        
+        console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
+
         if (!process.env.GOOGLE_API_KEY) {
-            console.error("[IA] Error: GOOGLE_API_KEY no configurada en Render");
-            return res.status(500).json({ error: 'La llave de API de Google no está configurada en el servidor.' });
+            return res.status(500).json({ error: 'Falta GOOGLE_API_KEY en el servidor.' });
         }
 
         if (!segmentos || segmentos.length === 0) {
-            return res.status(400).json({ error: 'No hay segmentos de audio para procesar' });
+            return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        console.log(`[IA] Procesando ${segmentos.length} segmentos para reunión ${reunionId}...`);
-        
         // 1. Preparar el modelo
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash", // Cambiado a flash por ser más rápido y menos propenso a timeouts
-            systemInstruction: `Eres un asistente secretario experto en reuniones de Consejo Técnico Escolar (CTE). 
-            Tu objetivo es escuchar los audios proporcionados y generar una redacción profesional, detallada y fiel a lo que se dijo.
-            
-            REGLAS CRÍTICAS:
-            1. NO INVENTES información. Si algo no se menciona en el audio, no lo incluyas.
-            2. DESARROLLO DE LA SESIÓN: Debe ser narrativo y cronológico. Menciona intervenciones específicas ("El director dio la bienvenida...", "La maestra X comentó sobre la lectura...", etc.).
-            3. ACUERDOS Y COMPROMISOS: Extrae solo los acuerdos explícitos. Si no hubo acuerdos, deja la lista vacía o indica 'No se establecieron acuerdos'.
-            4. FORMATO: Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
-               {
-                 "temas": ["Tema 1", "Tema 2"],
-                 "resumenGeneral": "Texto largo con el desarrollo detallado de la sesión...",
-                 "acuerdos": [
-                   {"texto": "Descripción del acuerdo", "responsable": "Nombre", "fecha": "Fecha o Pendiente"}
-                 ]
-               }`
+            model: "gemini-1.5-flash"
         });
 
-        // 2. Convertir segmentos base64 a partes de contenido para Gemini
+        // 2. Convertir segmentos
         const audioParts = segmentos.map((seg, index) => {
-            try {
-                const base64Parts = seg.audioData.split(',');
-                if (base64Parts.length < 2) {
-                    console.warn(`[IA] Segmento ${index} no tiene data base64 válida`);
-                    return null;
+            if (!seg.audioData || !seg.audioData.includes('base64,')) return null;
+            return {
+                inlineData: {
+                    data: seg.audioData.split('base64,')[1],
+                    mimeType: "audio/webm"
                 }
-                return {
-                    inlineData: {
-                        data: base64Parts[1],
-                        mimeType: "audio/webm"
-                    }
-                };
-            } catch (e) {
-                console.error(`[IA] Error procesando segmento ${index}:`, e);
-                return null;
-            }
-        }).filter(part => part !== null);
+            };
+        }).filter(p => p !== null);
 
         if (audioParts.length === 0) {
-            return res.status(400).json({ error: 'Los archivos de audio no tienen un formato válido.' });
+            return res.status(400).json({ error: 'Formato de audio no soportado o vacío.' });
         }
 
-        // 3. Generar contenido
-        const prompt = "Analiza estos segmentos de audio de la reunión de CTE. Transcribe lo que dicen los docentes y el director, y genera el resumen detallado y los acuerdos en el formato JSON solicitado.";
-        
+        console.log(`[IA] Enviando ${audioParts.length} partes a Gemini...`);
+
+        const prompt = `Actúa como secretario de una reunión escolar (CTE). 
+        Escucha estos audios y genera un acta en JSON con:
+        - "temas": Lista de temas.
+        - "resumenGeneral": Desarrollo narrativo detallado de la sesión, mencionando quién dijo qué.
+        - "acuerdos": Lista de objetos {texto, responsable, fecha}.
+        Si no hay acuerdos, deja la lista vacía. No inventes nada.`;
+
         const result = await model.generateContent([prompt, ...audioParts]);
         const response = await result.response;
-        
-        if (!response) {
-            throw new Error("No se recibió respuesta del modelo Gemini");
-        }
+        const text = response.text();
 
-        let text = response.text();
-        console.log(`[IA] Respuesta cruda recibida (${text.length} caracteres)`);
+        console.log(`[IA] Gemini respondió correctamente.`);
         
-        // Limpiar posible formato markdown del JSON
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
+        // Limpiar JSON
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const cleanJson = jsonMatch ? jsonMatch[0] : text;
+
         try {
-            const iaData = JSON.parse(text);
+            const iaData = JSON.parse(cleanJson);
             res.json({ success: true, data: iaData });
-        } catch (parseError) {
-            console.error("Error parseando JSON de Gemini:", text);
+        } catch (e) {
+            console.warn("[IA] Error parseando JSON, enviando como texto plano.");
             res.json({ 
                 success: true, 
                 data: {
-                    temas: ["Resumen de Sesión"],
+                    temas: ["Resumen"],
                     resumenGeneral: text,
                     acuerdos: []
                 }
@@ -256,12 +233,11 @@ app.post('/api/procesar-audio', async (req, res) => {
         }
 
     } catch (error) {
-        console.error("Error en procesamiento Gemini:", error);
-        let msg = 'Error al procesar el audio con Google Gemini API';
-        if (error.message.includes('API key not valid')) msg = 'La API Key de Google no es válida.';
-        if (error.message.includes('quota')) msg = 'Se ha agotado la cuota de la API de Google.';
-        
-        res.status(500).json({ error: msg, details: error.message });
+        console.error("[IA] CRITICAL ERROR:", error);
+        res.status(500).json({ 
+            error: 'Error en el motor de IA', 
+            details: error.message || 'Error desconocido'
+        });
     }
 });
 
