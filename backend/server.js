@@ -162,8 +162,8 @@ app.post('/api/actas', async (req, res) => {
 // ==========================================
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Inicializar Google AI con la llave proporcionada por el usuario
-const genAI = new GoogleGenerativeAI("AIzaSyAexAzbVjOgHSJqRnkrOSh9sdijrDaEaV4");
+// Inicializar Google AI con la llave desde las variables de entorno
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
 app.post('/api/procesar-audio', async (req, res) => {
     try {
