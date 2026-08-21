@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- PDF Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- PDF & DOCX Parsers for Agenda -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
     <!-- Header Desktop / Mobile -->
@@ -36,7 +39,7 @@
         </div>
         <ul class="nav-menu">
             <li><a href="#" data-target="view-inicio" class="nav-link active"><i class="fa-solid fa-house"></i> Inicio</a></li>
-            <li><a href="#" data-target="view-docentes" class="nav-link"><i class="fa-solid fa-users"></i> Docentes</a></li>
+            <li><a href="#" data-target="view-docentes" class="nav-link"><i class="fa-solid fa-users"></i> Participantes</a></li>
             <li><a href="#" data-target="view-reunion" class="nav-link"><i class="fa-solid fa-calendar-plus"></i> Nueva Reunión</a></li>
             <li><a href="#" data-target="view-historial" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Historial</a></li>
         </ul>
@@ -62,13 +65,8 @@
             <div class="dashboard-grid">
                 <div class="stat-card">
                     <i class="fa-solid fa-users text-blue"></i>
-                    <h3>Docentes Registrados</h3>
-                    <p class="stat-number">--</p>
-                </div>
-                <div class="stat-card">
-                    <i class="fa-solid fa-file-lines text-green"></i>
-                    <h3>Acuerdos Activos</h3>
-                    <p class="stat-number">--</p>
+                    <h3>Participantes Registrados</h3>
+                    <p id="dashboard-participantes-count" class="stat-number">--</p>
                 </div>
             </div>
         </section>
@@ -76,14 +74,14 @@
         <!-- View: Docentes -->
         <section id="view-docentes" class="view">
             <div class="view-header">
-                <h2>Plantilla Docente</h2>
+                <h2>Participantes Registrados</h2>
                 <button class="btn btn-primary btn-sm" onclick="docentesModule.toggleForm()">
                     <i class="fa-solid fa-user-plus"></i> Agregar
                 </button>
             </div>
             
             <div id="docentes-form-container" class="card form-card" style="display: none; margin-bottom: 2rem;">
-                <h3 id="docentes-form-title" style="margin-bottom: 1rem;">Nuevo Docente</h3>
+                <h3 id="docentes-form-title" style="margin-bottom: 1rem;">Nuevo Participante</h3>
                 <form id="docentes-form" onsubmit="docentesModule.saveDocente(event)">
                     <input type="hidden" id="docente-id">
                     <input type="hidden" id="docente-mongo-id">
@@ -93,28 +91,14 @@
                         <input type="text" id="docente-nombre" required style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:var(--radius);">
                     </div>
                     
-                    <div style="margin-bottom: 1rem;">
+                    <div style="margin-bottom: 1.5rem;">
                         <label for="docente-cargo" style="display:block; margin-bottom:0.5rem; font-weight:500;">Cargo / Asignatura</label>
                         <input type="text" id="docente-cargo" required style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:var(--radius);">
-                    </div>
-
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display:block; margin-bottom:0.5rem; font-weight:500;">Presentación de Voz (Huella Biómetrica)</label>
-                        <div style="background-color: #f0fdfa; border-left: 4px solid #0d9488; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
-                            <p style="font-size: 0.85rem; color: #0f766e; margin: 0;"><strong>Lectura Sugerida al Grabar:</strong><br/>"Hola, mi nombre es <em id="voz-nombre-preview" style="font-weight:bold;">[Tu Nombre]</em>. Soy docente de este plantel y este es mi registro de voz oficial para el sistema inteligente del Consejo Técnico Escolar. Autorizo que mi voz sea reconocida en las actas."</p>
-                        </div>
-                        <div style="display:flex; gap:1rem; align-items:center;">
-                            <button type="button" id="btn-record-voice" class="btn" style="background:#ef4444; color:white;" onclick="docentesModule.toggleRecording()">
-                                <i class="fa-solid fa-microphone"></i> Grabar Voz
-                            </button>
-                            <span id="recording-status" style="color:var(--text-muted); font-size:0.875rem;"></span>
-                            <audio id="audio-preview" controls style="display:none; height:40px;"></audio>
-                        </div>
                     </div>
                     
                     <div style="display:flex; gap:1rem; justify-content:flex-end;">
                         <button type="button" class="btn" onclick="docentesModule.toggleForm()" style="background:#f1f5f9; color:var(--text-main);">Cancelar</button>
-                        <button type="submit" class="btn btn-primary">Guardar Docente</button>
+                        <button type="submit" class="btn btn-primary">Guardar Participante</button>
                     </div>
                 </form>
             </div>
@@ -122,7 +106,7 @@
             <div id="docentes-list-container">
                 <div id="docentes-empty-state" class="empty-state">
                     <i class="fa-solid fa-users-slash"></i>
-                    <p>No hay docentes registrados todavía.</p>
+                    <p>No hay participantes registrados todavía.</p>
                 </div>
                 <div id="docentes-grid" class="dashboard-grid" style="display: none;">
                     <!-- Docentes cards injectadas por JS -->
@@ -147,14 +131,32 @@
                         <button class="btn btn-primary" onclick="reunionesModule.addAgendaItem()">Añadir</button>
                     </div>
                     
+                    <div style="margin-bottom: 1.5rem; border: 2px dashed var(--border); border-radius: var(--radius); padding: 1.25rem; text-align: center; background: #fafafa; position: relative;">
+                        <i class="fa-solid fa-file-pdf" style="font-size: 1.5rem; color: #ef4444; margin-right: 0.5rem;"></i>
+                        <i class="fa-solid fa-file-word" style="font-size: 1.5rem; color: #3b82f6;"></i>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.5rem 0 0 0;">Cargar orden del día desde PDF o DOCX</p>
+                        <input type="file" id="agenda-file-input" accept=".pdf,.docx" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" onchange="reunionesModule.handleAgendaFileUpload(event)">
+                        <span id="agenda-file-status" style="font-size: 0.8rem; font-weight: 500; color: var(--primary); display: block; margin-top: 0.25rem;"></span>
+                    </div>
+                    
                     <ul id="agenda-setup-list" style="list-style:none; padding:0; margin-bottom: 2rem; display: flex; flex-direction: column; gap: 0.5rem;">
                         <!-- Items injectados por JS -->
                     </ul>
                     
-                    <div style="text-align: center; border-top: 1px solid var(--border); padding-top: 2rem;">
+                    <div style="text-align: center; border-top: 1px solid var(--border); padding-top: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1rem;">
                         <button id="btn-start-reunion" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2.5rem;" onclick="reunionesModule.startReunion()">
-                            <i class="fa-solid fa-play"></i> Iniciar Reunión
+                            <i class="fa-solid fa-play"></i> Iniciar Reunión en Vivo
                         </button>
+                        
+                        <div style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">— O —</div>
+                        
+                        <div style="position: relative; display: inline-block;">
+                            <button class="btn" style="background: #10b981; color: white; padding: 0.75rem 2rem; border-radius: var(--radius); font-weight: 600;">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Subir Grabación Completa
+                            </button>
+                            <input type="file" id="external-audio-input" accept="audio/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" onchange="reunionesModule.handleExternalAudio(event)">
+                        </div>
+                        <span id="audio-file-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
                     </div>
                 </div>
 
@@ -195,6 +197,19 @@
                         <button id="btn-end-reunion" class="btn" style="background:#ef4444; color:white;" onclick="reunionesModule.endReunion()">
                             <i class="fa-solid fa-stop"></i> Finalizar
                         </button>
+                    </div>
+                    
+                    <div style="margin-top: 2rem; border-top: 1px dashed var(--border); padding-top: 1.5rem; text-align: center;">
+                        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 500;">
+                            <i class="fa-solid fa-file-arrow-up"></i> ¿Prefieres subir un archivo de audio para este punto?
+                        </p>
+                        <div style="position: relative; display: inline-block;">
+                            <button class="btn btn-sm" style="background: white; border: 1px solid var(--border); color: var(--text-main); font-weight: 600;">
+                                <i class="fa-solid fa-upload"></i> Seleccionar Audio
+                            </button>
+                            <input type="file" id="segment-audio-input" accept="audio/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" onchange="reunionesModule.handleSegmentAudioUpload(event)">
+                        </div>
+                        <div id="segment-audio-status" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;"></div>
                     </div>
                 </div>
             </div>

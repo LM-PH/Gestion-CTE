@@ -326,7 +326,7 @@ class ReunionesModule {
                         <h4 style="margin: 0;">Segmento #${idx + 1}</h4>
                         <span style="font-size: 0.75rem; background: var(--background); color: var(--text-main); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">${seg.ordenDiaTitulo}</span>
                     </div>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Guardado en el segundo ${seg.duracionSecs}</p>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Guardado en el segundo ${seg.duracionSecs}</p>
                 </div>
                 <div>
                     <audio controls src="${seg.audioData}" style="height: 35px; width: 100%; max-width: 280px;"></audio>
@@ -334,6 +334,265 @@ class ReunionesModule {
             `;
             this.segmentosList.appendChild(card);
         });
+    }
+
+    // ==========================================
+    // NUEVAS MEJORAS: PARSEO DE AGENDA Y AUDIOS EXTERNOS
+    // ==========================================
+
+    /**
+     * Procesa el texto extraído de un documento para extraer puntos de la orden del día
+     * @param {string} text 
+     */
+    parseAndAddAgendaText(text) {
+        const lines = text.split('\n');
+        const items = [];
+        
+        lines.forEach(line => {
+            const clean = line.trim();
+            if (clean.length < 4) return; // Ignorar líneas muy cortas
+            
+            // Limpiar enumeraciones (ej: "1. Introducción", "I. Saludo", "* Acuerdo")
+            const cleanedItem = clean
+                .replace(/^[\d+A-Za-z]+\.\s*/, '') // Números o letras seguidos de punto
+                .replace(/^[-*•]\s*/, '')          // Viñetas comunes
+                .trim();
+                
+            if (cleanedItem.length >= 4) {
+                items.push(cleanedItem);
+            }
+        });
+        
+        if (items.length > 0) {
+            if (confirm(`Se encontraron ${items.length} puntos en el documento. ¿Deseas agregarlos al Orden del Día?`)) {
+                this.draftAgenda = this.draftAgenda.concat(items);
+                this.renderDraftAgenda();
+                
+                const statusEl = document.getElementById('agenda-file-status');
+                if (statusEl) statusEl.innerText = `¡Cargados ${items.length} puntos con éxito!`;
+            }
+        } else {
+            alert("No se pudo extraer ningún punto claro de orden del día del archivo.");
+        }
+    }
+
+    /**
+     * Maneja la carga de archivos PDF/DOCX para la orden del día
+     * @param {Event} event 
+     */
+    async handleAgendaFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const statusEl = document.getElementById('agenda-file-status');
+        if (statusEl) statusEl.innerText = `Procesando: ${file.name}...`;
+        
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        
+        try {
+            if (fileExt === 'pdf') {
+                const reader = new FileReader();
+                reader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    try {
+                        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                        // Configurar worker
+                        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+                        
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        let fullText = '';
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const textItems = textContent.items.map(item => item.str);
+                            fullText += textItems.join(' ') + '\n';
+                        }
+                        reunionesModule.parseAndAddAgendaText(fullText);
+                    } catch (e) {
+                        console.error("Error leyendo PDF:", e);
+                        alert("Error al leer el archivo PDF. Asegúrate de que no tenga protección.");
+                        if (statusEl) statusEl.innerText = 'Error al cargar PDF.';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else if (fileExt === 'docx') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const arrayBuffer = e.target.result;
+                    window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+                        .then(function(result) {
+                            reunionesModule.parseAndAddAgendaText(result.value);
+                        })
+                        .catch(function(err) {
+                            console.error("Error al extraer DOCX:", err);
+                            alert("Error al leer el archivo Word.");
+                            if (statusEl) statusEl.innerText = 'Error al cargar Word.';
+                        });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert("Formato no soportado. Por favor sube un archivo .pdf o .docx");
+                if (statusEl) statusEl.innerText = '';
+            }
+        } catch (error) {
+            console.error("Error en handleAgendaFileUpload:", error);
+            if (statusEl) statusEl.innerText = 'Error al procesar archivo.';
+        }
+        
+        event.target.value = '';
+    }
+
+    /**
+     * Maneja la subida de una grabación externa completa
+     * @param {Event} event 
+     */
+    async handleExternalAudio(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const statusEl = document.getElementById('audio-file-status');
+        if (statusEl) statusEl.innerText = `Procesando grabación completa: ${file.name}... (Este proceso puede tardar unos segundos según el tamaño)`;
+        
+        try {
+            // Convertir archivo a base64
+            const base64Audio = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+            
+            if (statusEl) statusEl.innerText = `Guardando en base de datos local...`;
+            
+            // 1. Crear reunión como finalizada
+            const reunionData = {
+                fecha: new Date().toISOString(),
+                estado: 'finalizada',
+                duracionTotal: 0
+            };
+            const reunionId = await localDB.add('reuniones', reunionData);
+            
+            // 2. Guardar Orden del Día en DB
+            const activeAgendaItems = [];
+            const agendaTitles = this.draftAgenda.length > 0 ? this.draftAgenda : ['Reunión General'];
+            for (let i = 0; i < agendaTitles.length; i++) {
+                const point = {
+                    reunionId: reunionId,
+                    titulo: agendaTitles[i],
+                    orden: i + 1
+                };
+                const pointId = await localDB.add('ordenDia', point);
+                activeAgendaItems.push({ ...point, id: pointId });
+            }
+            
+            // 3. Guardar el segmento de audio completo
+            const segmentoData = {
+                reunionId: reunionId,
+                ordenDiaId: null,
+                ordenDiaTitulo: 'Grabación Completa',
+                audioData: base64Audio,
+                duracionSecs: 0
+            };
+            await localDB.add('segmentos', segmentoData);
+            
+            // 4. Crear el acta borrador
+            const docentes = await localDB.getAll('docentes');
+            const participantes = docentes.map(d => d.nombre);
+            
+            const nuevaActa = {
+                reunionId: reunionId,
+                fecha: reunionData.fecha,
+                escuela: 'Escuela Primaria',
+                participantes: participantes.length > 0 ? participantes : ['Sin participantes registrados'],
+                ordenDia: agendaTitles,
+                problematicas: [],
+                acuerdosList: [],
+                estado: 'borrador',
+                syncStatus: 'pending_add'
+            };
+            const actaId = await localDB.add('actas', nuevaActa);
+            
+            if (statusEl) statusEl.innerText = `¡Grabación importada con éxito! Redirigiendo...`;
+            alert('Grabación importada exitosamente. Se ha creado el borrador del acta.');
+            
+            // Limpiar variables de preparación
+            this.draftAgenda = [];
+            this.renderDraftAgenda();
+            if (statusEl) statusEl.innerText = '';
+            event.target.value = '';
+            
+            // Abrir y cargar el acta recién generada en la pestaña Historial
+            if (window.historialModule) {
+                await window.historialModule.loadHistorial();
+                window.historialModule.viewActa(actaId, reunionId);
+            } else {
+                app.navigate('view-historial');
+            }
+            
+        } catch (error) {
+            console.error("Error importando grabación externa:", error);
+            alert("No se pudo importar la grabación: " + (error.message || error));
+            if (statusEl) statusEl.innerText = 'Error al importar grabación.';
+            event.target.value = '';
+        }
+    }
+
+    /**
+     * Permite subir un archivo de audio para el punto de agenda actual en plena reunión activa
+     * @param {Event} event 
+     */
+    async handleSegmentAudioUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const statusEl = document.getElementById('segment-audio-status');
+        if (statusEl) statusEl.innerText = `Subiendo audio: ${file.name}...`;
+        
+        try {
+            // Si el grabador en vivo está activo, lo pausamos para guardar lo que llevaba hablado
+            if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                this.mediaRecorder.stop();
+                clearInterval(this.timerInterval);
+                
+                this.indicator.innerHTML = '<span style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span> PAUSADO';
+                this.indicator.style.color = '#f59e0b';
+                
+                this.btnPause.style.display = 'none';
+                this.btnResume.style.display = 'inline-flex';
+            }
+            
+            // Convertir archivo de audio a base64
+            const base64Audio = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+            
+            // Obtener el punto de agenda activo
+            const activeAgenda = this.activeAgendaItems[this.currentAgendaIndex];
+            
+            const segmentoData = {
+                reunionId: this.currentReunionId,
+                ordenDiaId: activeAgenda ? activeAgenda.id : null,
+                ordenDiaTitulo: activeAgenda ? activeAgenda.titulo : 'General',
+                audioData: base64Audio,
+                duracionSecs: this.secondsElapsed
+            };
+            
+            await localDB.add('segmentos', segmentoData);
+            await this.renderSegmentos();
+            
+            if (statusEl) statusEl.innerText = `¡Segmento de audio subido correctamente para el punto actual!`;
+            setTimeout(() => { if (statusEl) statusEl.innerText = ''; }, 3000);
+            
+        } catch (error) {
+            console.error("Error al subir audio para el segmento:", error);
+            alert("No se pudo procesar el archivo de audio: " + (error.message || error));
+            if (statusEl) statusEl.innerText = '';
+        }
+        
+        event.target.value = '';
     }
 }
 

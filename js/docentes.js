@@ -1,6 +1,6 @@
 /**
- * CTE Inteligente - Módulo de Docentes
- * Maneja la lógica de Frontend para listar, crear, editar, eliminar y grabar voz.
+ * CTE Inteligente - Módulo de Participantes
+ * Maneja la lógica de Frontend para listar, crear, editar y eliminar participantes.
  * Sincroniza con MongoDB a través de Node.js y usa IndexedDB como caché offline.
  */
 
@@ -14,26 +14,6 @@ class DocentesModule {
         this.grid = document.getElementById('docentes-grid');
         this.emptyState = document.getElementById('docentes-empty-state');
         
-        // Elementos de Audio
-        this.btnRecord = document.getElementById('btn-record-voice');
-        this.audioPreview = document.getElementById('audio-preview');
-        this.recordingStatus = document.getElementById('recording-status');
-        
-        // Estado de Audio
-        this.mediaRecorder = null;
-        this.audioChunks = [];
-        this.currentAudioBase64 = null;
-        this.isRecording = false;
-
-        // Preview dinámico del nombre en el texto de voz
-        const nombreInput = document.getElementById('docente-nombre');
-        const vozPreview = document.getElementById('voz-nombre-preview');
-        if (nombreInput && vozPreview) {
-            nombreInput.addEventListener('input', (e) => {
-                vozPreview.innerText = e.target.value.trim() || '[Tu Nombre]';
-            });
-        }
-
         // Cargar lista inicial
         this.loadDocentes();
     }
@@ -44,80 +24,16 @@ class DocentesModule {
             this.formContainer.style.display = 'block';
             if (reset) {
                 this.form.reset();
-                document.getElementById('docente-nombre').dispatchEvent(new Event('input'));
                 document.getElementById('docente-id').value = '';
                 document.getElementById('docente-mongo-id').value = '';
-                this.resetAudioUI();
-                document.getElementById('docentes-form-title').innerText = 'Nuevo Docente';
+                document.getElementById('docentes-form-title').innerText = 'Nuevo Participante';
             }
         } else {
             this.formContainer.style.display = 'none';
-            this.resetAudioUI();
         }
     }
 
-    /** Resetea la interfaz de grabación de voz */
-    resetAudioUI() {
-        this.currentAudioBase64 = null;
-        this.audioPreview.style.display = 'none';
-        this.audioPreview.src = '';
-        this.btnRecord.innerHTML = '<i class="fa-solid fa-microphone"></i> Grabar Voz';
-        this.btnRecord.style.background = '#ef4444';
-        this.recordingStatus.innerText = '';
-        this.isRecording = false;
-        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-            this.mediaRecorder.stop();
-        }
-    }
-
-    /** Lógica de grabación de voz */
-    async toggleRecording() {
-        if (this.isRecording) {
-            // Detener grabación
-            this.mediaRecorder.stop();
-            this.isRecording = false;
-            this.btnRecord.innerHTML = '<i class="fa-solid fa-microphone"></i> Volver a grabar';
-            this.btnRecord.style.background = '#3b82f6';
-            this.recordingStatus.innerText = 'Audio capturado.';
-        } else {
-            // Iniciar grabación
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                this.mediaRecorder = new MediaRecorder(stream);
-                this.audioChunks = [];
-
-                this.mediaRecorder.ondataavailable = e => {
-                    this.audioChunks.push(e.data);
-                };
-
-                this.mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-                    // Mostrar preview
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    this.audioPreview.src = audioUrl;
-                    this.audioPreview.style.display = 'block';
-                    
-                    // Convertir Blob a Base64 para guardarlo en DB/Nube fácilmente
-                    const reader = new FileReader();
-                    reader.readAsDataURL(audioBlob);
-                    reader.onloadend = () => {
-                        this.currentAudioBase64 = reader.result;
-                    };
-                };
-
-                this.mediaRecorder.start();
-                this.isRecording = true;
-                this.btnRecord.innerHTML = '<i class="fa-solid fa-stop"></i> Deteniendo...';
-                this.btnRecord.style.background = '#f59e0b';
-                this.recordingStatus.innerText = 'Grabando...';
-            } catch (err) {
-                alert('No se pudo acceder al micrófono. Por favor permite los permisos.');
-                console.error(err);
-            }
-        }
-    }
-
-    /** Guardar o actualizar Docente */
+    /** Guardar o actualizar Participante */
     async saveDocente(e) {
         e.preventDefault();
         
@@ -127,7 +43,7 @@ class DocentesModule {
         const docenteData = {
             nombre: document.getElementById('docente-nombre').value,
             cargo: document.getElementById('docente-cargo').value,
-            vozBase64: this.currentAudioBase64 || null,
+            vozBase64: null, // Ya no se incluye registro de voz
             syncStatus: navigator.onLine ? 'synced' : 'pending_add'
         };
 
@@ -171,16 +87,16 @@ class DocentesModule {
             this.loadDocentes();
             
         } catch (error) {
-            console.error("Error guardando docente:", error);
+            console.error("Error guardando participante:", error);
             alert("Error al guardar. Si estás offline, se guardó localmente.");
             this.toggleForm(false);
             this.loadDocentes();
         }
     }
 
-    /** Eliminar Docente */
+    /** Eliminar Participante */
     async deleteDocente(localId, mongoId) {
-        if (!confirm('¿Seguro que deseas eliminar a este docente?')) return;
+        if (!confirm('¿Seguro que deseas eliminar a este participante?')) return;
         
         try {
             // Eliminar localmente
@@ -195,36 +111,29 @@ class DocentesModule {
             
             this.loadDocentes();
         } catch (error) {
-            console.error("Error eliminando docente:", error);
+            console.error("Error eliminando participante:", error);
         }
     }
 
-    /** Editar Docente (Carga datos en el form) */
+    /** Editar Participante (Carga datos en el form) */
     async editDocente(localId) {
         try {
             const docente = await localDB.getById('docentes', parseInt(localId));
             if (docente) {
                 document.getElementById('docente-id').value = docente.id || '';
                 document.getElementById('docente-mongo-id').value = docente._id || '';
+                
                 const nameInput = document.getElementById('docente-nombre');
                 nameInput.value = docente.nombre;
-                nameInput.dispatchEvent(new Event('input'));
-                document.getElementById('docente-cargo').value = docente.cargo;
-                document.getElementById('docentes-form-title').innerText = 'Editar Docente';
                 
-                this.resetAudioUI();
-                if (docente.vozBase64) {
-                    this.currentAudioBase64 = docente.vozBase64;
-                    this.audioPreview.src = docente.vozBase64;
-                    this.audioPreview.style.display = 'block';
-                    this.btnRecord.innerHTML = '<i class="fa-solid fa-microphone"></i> Re-grabar Voz';
-                }
-
+                document.getElementById('docente-cargo').value = docente.cargo;
+                document.getElementById('docentes-form-title').innerText = 'Editar Participante';
+                
                 this.formContainer.style.display = 'block';
                 window.scrollTo(0, 0);
             }
         } catch (error) {
-            console.error("Error cargando docente:", error);
+            console.error("Error cargando participante:", error);
         }
     }
 
@@ -237,8 +146,6 @@ class DocentesModule {
             if (!response.ok) return;
             const cloudDocentes = await response.json();
             
-            // Para mantener la lógica simple de demostración, limpiamos y re-insertamos en Local
-            // En producción real, se hace un merge por _id
             const localDocentes = await localDB.getAll('docentes');
             for (let doc of localDocentes) {
                 if (doc.syncStatus === 'synced') {
@@ -256,7 +163,7 @@ class DocentesModule {
         }
     }
 
-    /** Cargar docentes en la UI */
+    /** Cargar participantes en la UI */
     async loadDocentes() {
         await this.syncFromCloud(); // Intenta bajar los más recientes si hay red
 
@@ -277,11 +184,6 @@ class DocentesModule {
                     
                     const offlineBadge = doc.syncStatus !== 'synced' ? `<span style="font-size:0.75rem; background:#f59e0b; color:white; padding:2px 6px; border-radius:4px;">Offline</span>` : '';
                     
-                    let audioPlayer = '';
-                    if (doc.vozBase64) {
-                        audioPlayer = `<audio controls src="${doc.vozBase64}" style="width: 100%; height: 35px; margin-top: 10px;"></audio>`;
-                    }
-
                     card.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                             <div>
@@ -293,17 +195,16 @@ class DocentesModule {
                                 <button onclick="docentesModule.deleteDocente('${doc.id}', '${doc._id || ''}')" style="border:none; background:none; cursor:pointer; color:#ef4444; font-size:1.1rem;"><i class="fa-solid fa-trash"></i></button>
                             </div>
                         </div>
-                        ${audioPlayer}
                     `;
                     this.grid.appendChild(card);
                 });
                 
                 // Update dashboard stat
-                const countEls = document.querySelectorAll('.stat-number');
-                if(countEls.length > 0) countEls[0].innerText = docentes.length;
+                const countEl = document.getElementById('dashboard-participantes-count');
+                if(countEl) countEl.innerText = docentes.length;
             }
         } catch (error) {
-            console.error("Error al cargar la lista de docentes:", error);
+            console.error("Error al cargar la lista de participantes:", error);
         }
     }
 }
@@ -311,7 +212,6 @@ class DocentesModule {
 // Iniciar el módulo
 let docentesModule;
 document.addEventListener('DOMContentLoaded', () => {
-    // Esperamos 500ms para asegurar que IndexedDB haya iniciado correctamente (versión simple)
     setTimeout(() => {
         docentesModule = new DocentesModule();
     }, 500);
