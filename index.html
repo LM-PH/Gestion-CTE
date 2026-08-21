@@ -123,6 +123,25 @@
             <div class="card" style="padding: 2rem;">
                 <!-- ESTADO 1: PREPARACIÓN -->
                 <div id="reunion-setup-state">
+                    <!-- Datos de Organización -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem;">
+                        <h3 style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-main); font-weight: 600;"><i class="fa-solid fa-circle-info"></i> Datos de la Sesión</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem;">
+                            <div>
+                                <label for="reunion-tipo" style="display:block; margin-bottom:0.5rem; font-weight:500; font-size:0.85rem;">Tipo de Reunión</label>
+                                <select id="reunion-tipo" style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:var(--radius); background:white;">
+                                    <option value="CTE Escolar">CTE Escolar</option>
+                                    <option value="CTE de Zona">CTE de Zona</option>
+                                    <option value="Otro Motivo">Otro Motivo</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="reunion-motivo" style="display:block; margin-bottom:0.5rem; font-weight:500; font-size:0.85rem;">Motivo / Título de Junta</label>
+                                <input type="text" id="reunion-motivo" placeholder="Ej. Primera Sesión Ordinaria..." style="width:100%; padding:0.75rem; border:1px solid var(--border); border-radius:var(--radius);">
+                            </div>
+                        </div>
+                    </div>
+
                     <h3 style="margin-bottom: 1rem; font-size: 1.1rem; color: var(--text-main);">Orden del Día</h3>
                     <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.9rem;">Agrega los puntos a tratar. Podrás avanzar entre ellos durante la grabación.</p>
                     
@@ -262,7 +281,7 @@
                 
                 <div id="acta-watermark" style="display: none; position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 6rem; color: rgba(239, 68, 68, 0.1); font-weight: bold; pointer-events: none; z-index: 0;">BORRADOR</div>
 
-                <h1 style="text-align: center; border-bottom: 2px solid #111; padding-bottom: 1rem; margin-bottom: 2rem; font-size: 2rem; position: relative; z-index: 1;">Acta de Sesión de Consejo Técnico Escolar</h1>
+                <h1 id="acta-titulo" style="text-align: center; border-bottom: 2px solid #111; padding-bottom: 1rem; margin-bottom: 2rem; font-size: 2rem; position: relative; z-index: 1;">Acta de Sesión de Consejo Técnico Escolar</h1>
                 
                 <input type="hidden" id="current-acta-id">
                 

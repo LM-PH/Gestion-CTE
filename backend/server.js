@@ -187,10 +187,15 @@ app.post('/api/procesar-audio', async (req, res) => {
         // 2. Convertir segmentos
         const audioParts = segmentos.map((seg, index) => {
             if (!seg.audioData || !seg.audioData.includes('base64,')) return null;
+            
+            // Extraer tipo mime de forma dinámica (ej. audio/mp3, audio/webm, audio/m4a, etc.)
+            const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
+            const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
+            
             return {
                 inlineData: {
                     data: seg.audioData.split('base64,')[1],
-                    mimeType: "audio/webm"
+                    mimeType: mimeType
                 }
             };
         }).filter(p => p !== null);
@@ -201,12 +206,23 @@ app.post('/api/procesar-audio', async (req, res) => {
 
         console.log(`[IA] Enviando ${audioParts.length} partes a Gemini...`);
 
-        const prompt = `Actúa como secretario de una reunión escolar (CTE). 
-        Escucha estos audios y genera un acta en JSON con:
-        - "temas": Lista de temas.
-        - "resumenGeneral": Desarrollo narrativo detallado de la sesión, mencionando quién dijo qué.
-        - "acuerdos": Lista de objetos {texto, responsable, fecha}.
-        Si no hay acuerdos, deja la lista vacía. No inventes nada.`;
+        const prompt = `Actúa como secretario de una reunión escolar de Consejo Técnico Escolar (CTE).
+        Analiza con atención el contenido de los audios proporcionados (que corresponden a grabaciones en vivo o audios externos subidos de la sesión). 
+        Genera un acta estructurada en formato JSON estricto con los siguientes campos:
+        
+        {
+          "temas": ["Lista detallada de temas tratados en la reunión"],
+          "resumenGeneral": "Una relatoría narrativa muy detallada e hilada de los hechos ocurridos en la sesión en español. Debe describir a profundidad lo discutido, mencionando qué participante intervino, qué propuestas hicieron y cómo se desarrolló la discusión punto por punto de la orden del día. El texto debe ser formal, explicativo y servir como testimonio completo de la reunión escolar.",
+          "acuerdos": [
+            {
+              "texto": "Detalle claro y completo del acuerdo, compromiso o tarea asignada",
+              "responsable": "Nombre del participante, equipo o grupo responsable (ej. Director, Todo el colectivo, Profesor Juan)",
+              "fecha": "Plazo límite de cumplimiento (ej. Próxima sesión, fecha exacta DD/MM/AAAA, o 'Pendiente')"
+            }
+          ]
+        }
+        
+        Asegúrate de extraer TODOS los compromisos, tareas y acuerdos que se hayan pactado. Si no se tomaron acuerdos en absoluto, deja la lista de acuerdos vacía. No inventes información que no esté en los audios.`;
 
         const result = await model.generateContent([prompt, ...audioParts]);
         const response = await result.response;

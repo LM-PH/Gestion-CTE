@@ -5,6 +5,7 @@
 class ReunionesModule {
     constructor() {
         this.currentReunionId = null;
+        this.extractedDetails = null;
         
         // --- UI ESTADOS ---
         this.setupState = document.getElementById('reunion-setup-state');
@@ -213,10 +214,15 @@ class ReunionesModule {
         try {
             await this.initAudioStream();
             
+            const tipoSelect = document.getElementById('reunion-tipo');
+            const motivoInput = document.getElementById('reunion-motivo');
+            
             // 1. Crear reunión
             const reunionData = {
                 fecha: new Date().toISOString(),
-                estado: 'activa'
+                estado: 'activa',
+                tipoReunion: tipoSelect ? tipoSelect.value : (this.extractedDetails?.tipoReunion || 'CTE Escolar'),
+                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || '')
             };
             this.currentReunionId = await localDB.add('reuniones', reunionData);
             
@@ -296,13 +302,15 @@ class ReunionesModule {
             const nuevaActa = {
                 reunionId: reunion.id,
                 fecha: reunion.fecha,
-                escuela: 'Escuela Primaria', // Puede ser editable luego
-                participantes: participantes,
+                escuela: this.extractedDetails?.escuela || 'Escuela Primaria',
+                participantes: this.extractedDetails?.participantes?.length > 0 ? this.extractedDetails.participantes : participantes,
                 ordenDia: ordenDia,
                 problematicas: [],
                 acuerdosList: [],
                 estado: 'borrador',
-                syncStatus: 'pending_add'
+                syncStatus: 'pending_add',
+                tipoReunion: reunion.tipoReunion || 'CTE Escolar',
+                motivoReunion: reunion.motivoReunion || ''
             };
             await localDB.add('actas', nuevaActa);
         } catch (err) {
@@ -361,6 +369,87 @@ class ReunionesModule {
     // ==========================================
     // NUEVAS MEJORAS: PARSEO DE AGENDA Y AUDIOS EXTERNOS
     // ==========================================
+
+    /**
+     * Extrae detalles de la reunión a partir del texto de la orden del día
+     * @param {string} text 
+     */
+    extractOrganizationDetails(text) {
+        const lines = text.split('\n');
+        const details = {
+            escuela: '',
+            fecha: '',
+            participantes: [],
+            tipoReunion: '',
+            motivoReunion: ''
+        };
+        
+        lines.forEach(line => {
+            const clean = line.trim();
+            const lower = clean.toLowerCase();
+            
+            // 1. Detectar Escuela/Plantel
+            if (lower.includes('escuela:') || lower.includes('plantel:') || lower.includes('colegio:') || lower.includes('c.c.t:')) {
+                const parts = clean.split(/[:\-]/);
+                if (parts.length > 1) {
+                    details.escuela = parts.slice(1).join(':').trim();
+                }
+            } else if ((lower.startsWith('escuela ') || lower.startsWith('plantel ')) && clean.length > 8 && clean.length < 60 && !details.escuela) {
+                details.escuela = clean;
+            }
+            
+            // 2. Detectar Fecha
+            if (lower.includes('fecha:') || lower.includes('día:') || lower.includes('dia:')) {
+                const parts = clean.split(/[:\-]/);
+                if (parts.length > 1) {
+                    details.fecha = parts.slice(1).join(':').trim();
+                }
+            }
+            
+            // 3. Detectar Tipo de Reunión
+            if (lower.includes('cte de zona') || lower.includes('consejo técnico de zona') || lower.includes('cte zona')) {
+                details.tipoReunion = 'CTE de Zona';
+            } else if (lower.includes('cte escolar') || lower.includes('consejo técnico escolar') || lower.includes('cte de escuela')) {
+                details.tipoReunion = 'CTE Escolar';
+            }
+            
+            // 4. Detectar Motivo / Sesión
+            if (lower.includes('sesión ordinaria') || lower.includes('sesion ordinaria')) {
+                const match = clean.match(/(\d+ª|primera|segunda|tercera|cuarta|quinta|sexta|séptima|octava)\s+sesi[óo]n\s+ordinaria/i);
+                details.motivoReunion = match ? match[0] : 'Sesión Ordinaria';
+            } else if (lower.includes('sesión extraordinaria') || lower.includes('sesion extraordinaria')) {
+                details.motivoReunion = 'Sesión Extraordinaria';
+            }
+            
+            // 5. Detectar Participantes
+            if (lower.includes('participantes:') || lower.includes('asistentes:') || lower.includes('docentes:')) {
+                const parts = clean.split(/[:\-]/);
+                if (parts.length > 1 && parts[1].trim().length > 3) {
+                    const names = parts[1].split(/[,;]/).map(n => n.trim()).filter(n => n.length > 3);
+                    details.participantes = details.participantes.concat(names);
+                }
+            }
+        });
+        
+        this.extractedDetails = details;
+        console.log("Detalles extraídos:", details);
+        
+        // Autocompletar la UI de datos de sesión si se detectaron
+        const statusEl = document.getElementById('agenda-file-status');
+        if (details.escuela && statusEl) {
+            statusEl.innerHTML += `<br/><span style="color:#10b981; font-size:0.8rem; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Plantel detectado: ${details.escuela}</span>`;
+        }
+        
+        if (details.tipoReunion) {
+            const tipoSelect = document.getElementById('reunion-tipo');
+            if (tipoSelect) tipoSelect.value = details.tipoReunion;
+        }
+        
+        if (details.motivoReunion) {
+            const motivoInput = document.getElementById('reunion-motivo');
+            if (motivoInput) motivoInput.value = details.motivoReunion;
+        }
+    }
 
     /**
      * Procesa el texto extraído de un documento para extraer puntos de la orden del día
@@ -430,6 +519,7 @@ class ReunionesModule {
                             fullText += textItems.join(' ') + '\n';
                         }
                         reunionesModule.parseAndAddAgendaText(fullText);
+                        reunionesModule.extractOrganizationDetails(fullText);
                     } catch (e) {
                         console.error("Error leyendo PDF:", e);
                         alert("Error al leer el archivo PDF. Asegúrate de que no tenga protección.");
@@ -444,6 +534,7 @@ class ReunionesModule {
                     window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
                         .then(function(result) {
                             reunionesModule.parseAndAddAgendaText(result.value);
+                            reunionesModule.extractOrganizationDetails(result.value);
                         })
                         .catch(function(err) {
                             console.error("Error al extraer DOCX:", err);
@@ -486,11 +577,16 @@ class ReunionesModule {
             
             if (statusEl) statusEl.innerText = `Guardando en base de datos local...`;
             
+            const tipoSelect = document.getElementById('reunion-tipo');
+            const motivoInput = document.getElementById('reunion-motivo');
+            
             // 1. Crear reunión como finalizada
             const reunionData = {
                 fecha: new Date().toISOString(),
                 estado: 'finalizada',
-                duracionTotal: 0
+                duracionTotal: 0,
+                tipoReunion: tipoSelect ? tipoSelect.value : (this.extractedDetails?.tipoReunion || 'CTE Escolar'),
+                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || '')
             };
             const reunionId = await localDB.add('reuniones', reunionData);
             
@@ -524,13 +620,15 @@ class ReunionesModule {
             const nuevaActa = {
                 reunionId: reunionId,
                 fecha: reunionData.fecha,
-                escuela: 'Escuela Primaria',
-                participantes: participantes.length > 0 ? participantes : ['Sin participantes registrados'],
+                escuela: this.extractedDetails?.escuela || 'Escuela Primaria',
+                participantes: this.extractedDetails?.participantes?.length > 0 ? this.extractedDetails.participantes : (participantes.length > 0 ? participantes : ['Sin participantes registrados']),
                 ordenDia: agendaTitles,
                 problematicas: [],
                 acuerdosList: [],
                 estado: 'borrador',
-                syncStatus: 'pending_add'
+                syncStatus: 'pending_add',
+                tipoReunion: reunionData.tipoReunion,
+                motivoReunion: reunionData.motivoReunion
             };
             const actaId = await localDB.add('actas', nuevaActa);
             

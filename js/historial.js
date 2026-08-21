@@ -158,6 +158,19 @@ class HistorialModule {
             this.actaEscuela.value = acta.escuela || '';
             this.actaFecha.innerText = this.formatDate(acta.fecha);
             
+            // Actualizar título dinámico del acta
+            const actaTituloEl = document.getElementById('acta-titulo');
+            if (actaTituloEl) {
+                let titulo = 'Acta de Sesión de Consejo Técnico Escolar';
+                if (acta.tipoReunion) {
+                    titulo += ` (${acta.tipoReunion})`;
+                }
+                if (acta.motivoReunion) {
+                    titulo += ` - ${acta.motivoReunion}`;
+                }
+                actaTituloEl.innerText = titulo;
+            }
+            
             // Textareas
             this.actaParticipantesInput.value = acta.participantes.join('\n');
             this.actaOrdenInput.value = acta.ordenDia.join('\n');
