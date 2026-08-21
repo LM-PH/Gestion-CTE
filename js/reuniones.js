@@ -144,47 +144,69 @@ class ReunionesModule {
     }
 
     async initAudioStream() {
-        if (!this.audioStream) {
+        // Verificar si no hay stream o si todos sus tracks están inactivos/parados
+        const isStreamActive = this.audioStream && 
+                               this.audioStream.active && 
+                               this.audioStream.getTracks().some(track => track.readyState === 'live');
+                               
+        if (!isStreamActive) {
             this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         }
     }
 
-    startRecordingChunk() {
-        this.audioChunks = [];
-        this.mediaRecorder = new MediaRecorder(this.audioStream);
-        
-        this.mediaRecorder.ondataavailable = e => {
-            if (e.data.size > 0) this.audioChunks.push(e.data);
-        };
-
-        this.mediaRecorder.onstop = async () => {
-            const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = async () => {
-                const base64Audio = reader.result;
-                // Adjuntar el punto de agenda activo al segmento
-                const activeAgenda = this.activeAgendaItems[this.currentAgendaIndex];
-                
-                const segmentoData = {
-                    reunionId: this.currentReunionId,
-                    ordenDiaId: activeAgenda ? activeAgenda.id : null,
-                    ordenDiaTitulo: activeAgenda ? activeAgenda.titulo : 'General',
-                    audioData: base64Audio,
-                    duracionSecs: this.secondsElapsed
-                };
-                
-                await localDB.add('segmentos', segmentoData);
-                this.renderSegmentos();
+    async startRecordingChunk() {
+        try {
+            this.audioChunks = [];
+            
+            // Asegurar que el stream de audio esté re-inicializado y activo (por si se suspendió offline)
+            await this.initAudioStream();
+            
+            this.mediaRecorder = new MediaRecorder(this.audioStream);
+            
+            this.mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) this.audioChunks.push(e.data);
             };
-        };
 
-        this.mediaRecorder.start();
-        
-        this.indicator.style.color = '#ef4444';
-        this.indicator.innerHTML = '<span style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; display: inline-block;"></span> GRABANDO';
-        
-        this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+            this.mediaRecorder.onstop = async () => {
+                const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = async () => {
+                    const base64Audio = reader.result;
+                    // Adjuntar el punto de agenda activo al segmento
+                    const activeAgenda = this.activeAgendaItems[this.currentAgendaIndex];
+                    
+                    const segmentoData = {
+                        reunionId: this.currentReunionId,
+                        ordenDiaId: activeAgenda ? activeAgenda.id : null,
+                        ordenDiaTitulo: activeAgenda ? activeAgenda.titulo : 'General',
+                        audioData: base64Audio,
+                        duracionSecs: this.secondsElapsed
+                    };
+                    
+                    await localDB.add('segmentos', segmentoData);
+                    this.renderSegmentos();
+                };
+            };
+
+            this.mediaRecorder.start();
+            
+            this.indicator.style.color = '#ef4444';
+            this.indicator.innerHTML = '<span style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; display: inline-block;"></span> GRABANDO';
+            
+            if (this.timerInterval) clearInterval(this.timerInterval);
+            this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+        } catch (error) {
+            console.error("Error al iniciar la grabación:", error);
+            alert("Error al acceder al micrófono o reanudar la grabación. Revisa los permisos.");
+            
+            // Revertir UI
+            this.btnPause.style.display = 'none';
+            this.btnResume.style.display = 'inline-flex';
+            this.indicator.innerHTML = '<span style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; display: inline-block;"></span> ERROR DE MICRÓFONO';
+            this.indicator.style.color = '#ef4444';
+            if (this.timerInterval) clearInterval(this.timerInterval);
+        }
     }
 
     async startReunion() {
@@ -245,8 +267,8 @@ class ReunionesModule {
         this.btnResume.style.display = 'inline-flex';
     }
 
-    resumeReunion() {
-        this.startRecordingChunk();
+    async resumeReunion() {
+        await this.startRecordingChunk();
         
         this.btnResume.style.display = 'none';
         this.btnPause.style.display = 'inline-flex';
