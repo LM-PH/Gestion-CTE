@@ -190,7 +190,14 @@ app.post('/api/procesar-audio', async (req, res) => {
             
             // Extraer tipo mime de forma dinámica (ej. audio/mp3, audio/webm, audio/m4a, etc.)
             const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
-            const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
+            let mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
+            
+            // Mapeos para mayor compatibilidad con Gemini
+            if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
+                mimeType = 'audio/aac'; // Gemini soporta AAC
+            } else if (mimeType.includes('mpeg')) {
+                mimeType = 'audio/mp3'; // mpeg suele ser mp3
+            }
             
             return {
                 inlineData: {

@@ -457,22 +457,41 @@ class ReunionesModule {
      */
     parseAndAddAgendaText(text) {
         const lines = text.split('\n');
-        const items = [];
         
-        lines.forEach(line => {
+        let inAgendaSection = false;
+        const agendaPoints = [];
+        
+        for (let line of lines) {
             const clean = line.trim();
-            if (clean.length < 4) return; // Ignorar líneas muy cortas
+            const lower = clean.toLowerCase();
             
-            // Limpiar enumeraciones (ej: "1. Introducción", "I. Saludo", "* Acuerdo")
-            const cleanedItem = clean
-                .replace(/^[\d+A-Za-z]+\.\s*/, '') // Números o letras seguidos de punto
-                .replace(/^[-*•]\s*/, '')          // Viñetas comunes
-                .trim();
-                
-            if (cleanedItem.length >= 4) {
-                items.push(cleanedItem);
+            // Buscar inicio de la sección de orden del día
+            if (lower.includes('orden del día') || lower.includes('agenda') || lower.includes('temas a tratar') || lower.includes('orden del dia') || lower.includes('propósito') || lower.includes('proposito')) {
+                inAgendaSection = true;
+                continue;
             }
-        });
+            
+            // Si la línea tiene formato de viñeta/número o estamos en la sección de agenda
+            const hasListMarker = /^(\d+[\.\)\-]|[\-\*•])\s+/.test(clean);
+            
+            if (hasListMarker || (inAgendaSection && clean.length > 5 && clean.length < 150)) {
+                let cleanLine = clean.replace(/^(\d+[\.\)\-]|[\-\*•])\s*/, '').trim();
+                if (cleanLine.length > 5 && cleanLine.length < 150) {
+                    agendaPoints.push(cleanLine);
+                }
+            }
+            
+            // Si cambia a otra sección con título en mayúsculas
+            if (inAgendaSection && clean === clean.toUpperCase() && clean.length > 15 && !lower.includes('orden del día') && !lower.includes('agenda')) {
+                inAgendaSection = false; 
+            }
+        }
+        
+        // Fallback: Si no detectamos puntos de agenda obvios, buscamos cualquier línea que parezca lista
+        const items = agendaPoints.length > 0 ? agendaPoints : lines.filter(l => {
+            const c = l.trim();
+            return /^(\d+[\.\)\-]|[\-\*•])\s+/.test(c) && c.length > 5 && c.length < 150;
+        }).map(l => l.trim().replace(/^(\d+[\.\)\-]|[\-\*•])\s*/, ''));
         
         if (items.length > 0) {
             if (confirm(`Se encontraron ${items.length} puntos en el documento. ¿Deseas agregarlos al Orden del Día?`)) {

@@ -161,13 +161,14 @@ class HistorialModule {
             // Actualizar título dinámico del acta
             const actaTituloEl = document.getElementById('acta-titulo');
             if (actaTituloEl) {
-                let titulo = 'Acta de Sesión de Consejo Técnico Escolar';
+                let titulo = '';
                 if (acta.tipoReunion) {
-                    titulo += ` (${acta.tipoReunion})`;
+                    titulo += acta.tipoReunion;
                 }
                 if (acta.motivoReunion) {
-                    titulo += ` - ${acta.motivoReunion}`;
+                    titulo += (titulo ? ' - ' : '') + acta.motivoReunion;
                 }
+                if (!titulo) titulo = 'Acta de Sesión';
                 actaTituloEl.innerText = titulo;
             }
             
