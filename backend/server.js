@@ -491,8 +491,8 @@ Tu tarea principal e inquebrantable es analizar TODOS LOS AUDIOS adjuntos y gene
 REGLAS DE ORO:
 1. AUDIO ES LA ÚNICA VERDAD: Redacta la relatoría (resumenGeneral) narrando EXCLUSIVAMENTE lo que se habló en los audios. Si algo venía en la agenda pero no se habló, NO LO INVENTES.
 2. NOMBRES GENERALES: Si no estás seguro de quién habló, usa términos genéricos como "Un docente", "El colectivo", "Un participante". Solo usa nombres propios si se dicen claramente en el audio.
-3. ACUERDOS ESTRICTOS Y ESPECÍFICOS: En el campo "acuerdos", SOLO extrae compromisos reales y específicos (ej. "Entregar calificaciones el viernes"). Ignora sugerencias vagas o reflexiones; solo queremos tareas pactadas.
-4. EXTENSIÓN: La relatoría debe ser profunda y detallada, abarcando TODO el tiempo de grabación de TODOS los audios. No la cortes.
+3. ACUERDOS EXTRAORDINARIOS Y FORMALES: En el campo "acuerdos", SOLO extrae compromisos institucionales o extraordinarios. EXCLUYE TOTALMENTE las actividades escolares rutinarias (ej. planificar, aplicar exámenes, dar clases). Ignora sugerencias o ideas al aire.
+4. EXTENSIÓN GLOBAL: La relatoría debe ser profunda y detallada, abarcando TODO el tiempo de grabación desde el AUDIO 1 hasta el ÚLTIMO AUDIO. Debes integrar todos los audios en un solo resumen fluido.
 `;
 
                 if (agenda && agenda.trim() !== '') {
@@ -510,8 +510,15 @@ ${agenda}
 `;
                 }
 
-                // Ejecutar generación con la API nativa y URIs
-                const result = await model.generateContent([prompt, ...uploadedFiles]);
+                const geminiPayload = [prompt];
+                for (let j = 0; j < uploadedFiles.length; j++) {
+                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\n` });
+                    geminiPayload.push(uploadedFiles[j]);
+                    geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
+                }
+
+                // Ejecutar generación con la API nativa y URIs bien etiquetadas
+                const result = await model.generateContent(geminiPayload);
                 const response = await result.response;
                 const text = response.text();
 
