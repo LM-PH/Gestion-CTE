@@ -222,7 +222,9 @@ class ReunionesModule {
                 fecha: new Date().toISOString(),
                 estado: 'activa',
                 tipoReunion: tipoSelect ? tipoSelect.value : (this.extractedDetails?.tipoReunion || 'CTE Escolar'),
-                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || '')
+                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || ''),
+                propositos: this.extractedDetails?.propositos || "No especificados",
+                organizacion: this.extractedDetails?.organizacion || "No especificada"
             };
             this.currentReunionId = await localDB.add('reuniones', reunionData);
             
@@ -442,77 +444,75 @@ class ReunionesModule {
         
         if (details.tipoReunion) {
             const tipoSelect = document.getElementById('reunion-tipo');
-            if (tipoSelect) tipoSelect.value = details.tipoReunion;
-        }
+     * Procesa el texto extraído del documento enviándolo a la Inteligencia Artificial (Gemini)
+     * para que estructure la Orden del Día y extraiga la Organización y Propósitos.
+     * @param {string} text 
+     */
+    async processAgendaWithAI(text) {
+        const statusEl = document.getElementById('agenda-file-status');
+        if (statusEl) statusEl.innerText = `Analizando documento con Inteligencia Artificial...`;
         
-        if (details.motivoReunion) {
-            const motivoInput = document.getElementById('reunion-motivo');
-            if (motivoInput) motivoInput.value = details.motivoReunion;
+        try {
+            const response = await fetch(`${window.ENV.API_URL}/api/analizar-pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            
+            if (!response.ok) throw new Error("Error en la respuesta del servidor");
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+                const data = result.data;
+                
+                // 1. Limpiar agenda actual
+                this.draftAgenda = [];
+                
+                // 2. Insertar temas estructurados
+                if (data.temas && Array.isArray(data.temas)) {
+                    data.temas.forEach(tema => {
+                        let title = tema.titulo || "Tema";
+                        if (tema.tiempo && tema.tiempo !== "No especificado") title += ` (${tema.tiempo})`;
+                        if (tema.responsables && tema.responsables !== "No especificado") title += ` - Resp: ${tema.responsables}`;
+                        this.draftAgenda.push(title);
+                    });
+                } else {
+                    // Fallback extremo
+                    this.draftAgenda.push("Orden del Día: " + text.substring(0, 1000));
+                }
+                this.renderDraftAgenda();
+                
+                // 3. Guardar propósitos y organización en memoria
+                this.extractedDetails = {
+                    ...this.extractedDetails,
+                    propositos: data.propositos || "No detectados",
+                    organizacion: data.organizacion || "No detectada"
+                };
+                
+                // 4. Mostrar panel informativo en la interfaz
+                if (statusEl) {
+                    statusEl.innerHTML = `
+                        <div style="text-align: left; background: #e0f2fe; border: 1px solid #bae6fd; padding: 1rem; border-radius: 8px; margin-top: 10px; color: #0369a1;">
+                            <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; font-weight: bold;"><i class="fa-solid fa-calendar-check"></i> Análisis de IA Completado</h4>
+                            <p style="margin: 0; font-size: 0.85rem;"><strong>Sede/Fecha:</strong> ${data.organizacion}</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem;"><strong>Propósitos:</strong> ${data.propositos}</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight: bold; color: #0284c7;"><strong>Temas Extraídos:</strong> ${data.temas ? data.temas.length : 0}</p>
+                        </div>
+                    `;
+                }
+            } else {
+                throw new Error("Datos inválidos devueltos por la IA");
+            }
+        } catch (error) {
+            console.error("Error al procesar con IA:", error);
+            if (statusEl) statusEl.innerText = "Error al analizar con IA. Usando texto bruto...";
+            this.draftAgenda = [text.substring(0, 2000)];
+            this.renderDraftAgenda();
         }
     }
 
     /**
-     * Procesa el texto extraído de un documento para extraer puntos de la orden del día
-     * @param {string} text 
-     */
-    parseAndAddAgendaText(text) {
-        const lines = text.split('\n');
-        
-        let inAgendaSection = false;
-        const agendaPoints = [];
-        
-        for (let line of lines) {
-            const clean = line.trim();
-            const lower = clean.toLowerCase();
-            
-            // Buscar inicio de la sección de orden del día
-            if (lower.includes('orden del día') || lower.includes('agenda') || lower.includes('temas a tratar') || lower.includes('orden del dia') || lower.includes('propósito') || lower.includes('proposito')) {
-                inAgendaSection = true;
-                continue;
-            }
-            
-            // Si la línea tiene formato de viñeta/número o estamos en la sección de agenda
-            const hasListMarker = /^(\d+[\.\)\-]|[\-\*•])\s+/.test(clean);
-            
-            if (hasListMarker || (inAgendaSection && clean.length > 5 && clean.length < 150)) {
-                let cleanLine = clean.replace(/^(\d+[\.\)\-]|[\-\*•])\s*/, '').trim();
-                if (cleanLine.length > 5 && cleanLine.length < 150) {
-                    agendaPoints.push(cleanLine);
-                }
-            }
-            
-            // Si cambia a otra sección con título en mayúsculas
-            if (inAgendaSection && clean === clean.toUpperCase() && clean.length > 15 && !lower.includes('orden del día') && !lower.includes('agenda')) {
-                inAgendaSection = false; 
-            }
-        }
-        
-        // Fallback: Si no detectamos puntos de agenda obvios, buscamos cualquier línea que parezca lista
-        const items = agendaPoints.length > 0 ? agendaPoints : lines.filter(l => {
-            const c = l.trim();
-            return /^(\d+[\.\)\-]|[\-\*•])\s+/.test(c) && c.length > 5 && c.length < 150;
-        }).map(l => l.trim().replace(/^(\d+[\.\)\-]|[\-\*•])\s*/, ''));
-        
-        // Fallback Extremo: Si no hay formato de lista en absoluto, tomamos el texto bruto (hasta 2500 caracteres)
-        if (items.length === 0) {
-            const rawTextContext = text.replace(/\s+/g, ' ').trim().substring(0, 2500);
-            if (rawTextContext.length > 50) {
-                items.push("Documento Oficial (Propósitos y Agenda): " + rawTextContext);
-            }
-        }
-        
-        if (items.length > 0) {
-            if (confirm(`Se encontraron ${items.length} punto(s) o bloques de texto en el documento. ¿Deseas agregarlos al Orden del Día?`)) {
-                this.draftAgenda = this.draftAgenda.concat(items);
-                this.renderDraftAgenda();
-                
-                const statusEl = document.getElementById('agenda-file-status');
-                if (statusEl) statusEl.innerText = `¡Agenda procesada con éxito!`;
-            }
-        } else {
-            alert("El documento parece estar vacío o su texto no se pudo extraer. Intenta copiar y pegar la agenda manualmente.");
-        }
-    }
+     * Extrae detalles de la reunión a partir del texto de la orden del día (MÉTODO ANTIGUO LOCAL)  }
 
     /**
      * Maneja la carga de archivos PDF/DOCX para la orden del día
@@ -545,8 +545,7 @@ class ReunionesModule {
                             const textItems = textContent.items.map(item => item.str);
                             fullText += textItems.join(' ') + '\n';
                         }
-                        reunionesModule.parseAndAddAgendaText(fullText);
-                        reunionesModule.extractOrganizationDetails(fullText);
+                        reunionesModule.processAgendaWithAI(fullText);
                     } catch (e) {
                         console.error("Error leyendo PDF:", e);
                         alert("Error al leer el archivo PDF. Asegúrate de que no tenga protección.");
@@ -560,8 +559,7 @@ class ReunionesModule {
                     const arrayBuffer = e.target.result;
                     window.mammoth.extractRawText({ arrayBuffer: arrayBuffer })
                         .then(function(result) {
-                            reunionesModule.parseAndAddAgendaText(result.value);
-                            reunionesModule.extractOrganizationDetails(result.value);
+                            reunionesModule.processAgendaWithAI(result.value);
                         })
                         .catch(function(err) {
                             console.error("Error al extraer DOCX:", err);
@@ -605,7 +603,9 @@ class ReunionesModule {
                 estado: 'finalizada',
                 duracionTotal: 0,
                 tipoReunion: tipoSelect ? tipoSelect.value : (this.extractedDetails?.tipoReunion || 'CTE Escolar'),
-                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || '')
+                motivoReunion: motivoInput ? motivoInput.value.trim() : (this.extractedDetails?.motivoReunion || ''),
+                propositos: this.extractedDetails?.propositos || "No especificados",
+                organizacion: this.extractedDetails?.organizacion || "No especificada"
             };
             const reunionId = await localDB.add('reuniones', reunionData);
             

@@ -237,9 +237,18 @@ class HistorialModule {
             // Obtenemos los segmentos de la base local
             const segmentos = await localDB.getByIndex('segmentos', 'reunionId', reunionId);
             
+            // Obtenemos la reunión para sacar propósitos y organización
+            const reunionInfo = await localDB.getById('reuniones', reunionId);
+            const props = reunionInfo?.propositos || '';
+            const org = reunionInfo?.organizacion || '';
+            
             // Obtenemos la orden del día de la base local (ej. extraída del PDF)
             const ordenDiaItems = await localDB.getByIndex('ordenDia', 'reunionId', reunionId);
-            const agendaText = ordenDiaItems.sort((a,b) => a.orden - b.orden).map(item => item.titulo).join('\n');
+            let agendaText = ordenDiaItems.sort((a,b) => a.orden - b.orden).map(item => item.titulo).join('\n');
+            
+            if (props || org) {
+                agendaText = `ORGANIZACIÓN: ${org}\nPROPÓSITOS: ${props}\n\nTEMAS DE AGENDA:\n${agendaText}`;
+            }
             
             // Chunking logic para evitar el Error 413 Payload Too Large
             const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB en caracteres para máxima seguridad

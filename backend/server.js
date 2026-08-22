@@ -191,6 +191,62 @@ app.post('/api/upload-chunk', (req, res) => {
     }
 });
 
+app.post('/api/analizar-pdf', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'No text provided' });
+        
+        if (!process.env.GOOGLE_API_KEY) {
+            return res.status(500).json({ error: 'Falta GOOGLE_API_KEY en el servidor.' });
+        }
+        
+        console.log(`[IA] Analizando documento PDF (${text.length} chars)...`);
+        
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+        
+        const prompt = `Analiza el siguiente texto extraído de un documento oficial (Agenda o Guía de Consejo Técnico Escolar).
+Extrae la información clave y devuélvela en un formato JSON estricto.
+
+Reglas:
+1. "propositos": Extrae los propósitos u objetivos generales mencionados en el texto. Resume si es muy largo (un solo párrafo).
+2. "organizacion": Extrae la fecha, lugar, sede y/o modalidad si se mencionan. Si no se mencionan, devuelve "No especificado".
+3. "temas": Crea una lista con la agenda oficial paso a paso. Para cada tema extrae su Título (obligatorio), Tiempo Asignado (si aplica) y Responsable(s) (si aplica).
+
+Estructura JSON requerida:
+{
+  "propositos": "Propósitos de la sesión...",
+  "organizacion": "Sede: Escuela X, Fecha: Y...",
+  "temas": [
+    {
+      "titulo": "Mensaje de Bienvenida",
+      "tiempo": "10 minutos",
+      "responsables": "Director"
+    }
+  ]
+}
+
+--- TEXTO DEL DOCUMENTO ---
+${text}
+---------------------------`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const responseText = response.text();
+        
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        const cleanJson = jsonMatch ? jsonMatch[0] : responseText;
+        const data = JSON.parse(cleanJson);
+        
+        res.json({ success: true, data });
+    } catch (e) {
+        console.error("Error analizando PDF:", e);
+        res.status(500).json({ error: 'Fallo al analizar el documento con IA' });
+    }
+});
+
 
 app.post('/api/procesar-audio', async (req, res) => {
     try {
