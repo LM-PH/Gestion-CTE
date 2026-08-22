@@ -237,6 +237,10 @@ class HistorialModule {
             // Obtenemos los segmentos de la base local
             const segmentos = await localDB.getByIndex('segmentos', 'reunionId', reunionId);
             
+            // Obtenemos la orden del día de la base local (ej. extraída del PDF)
+            const ordenDiaItems = await localDB.getByIndex('ordenDia', 'reunionId', reunionId);
+            const agendaText = ordenDiaItems.sort((a,b) => a.orden - b.orden).map(item => item.titulo).join('\n');
+            
             // Chunking logic para evitar el Error 413 Payload Too Large
             const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB en caracteres para máxima seguridad
             const processedSegmentos = [];
@@ -282,7 +286,7 @@ class HistorialModule {
             const response = await fetch(`${window.ENV.API_URL}/api/procesar-audio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reunionId, segmentos: processedSegmentos })
+                body: JSON.stringify({ reunionId, segmentos: processedSegmentos, agenda: agendaText })
             });
 
             if (!response.ok) {

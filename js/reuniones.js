@@ -579,22 +579,14 @@ class ReunionesModule {
      * @param {Event} event 
      */
     async handleExternalAudio(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
         
         const statusEl = document.getElementById('audio-file-status');
-        if (statusEl) statusEl.innerText = `Procesando grabación completa: ${file.name}... (Este proceso puede tardar unos segundos según el tamaño)`;
+        if (statusEl) statusEl.innerText = `Procesando ${files.length} grabación(es)... (Este proceso puede tardar unos segundos)`;
         
         try {
-            // Convertir archivo a base64
-            const base64Audio = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-            
-            if (statusEl) statusEl.innerText = `Guardando en base de datos local...`;
+            if (statusEl) statusEl.innerText = `Iniciando guardado en base de datos local...`;
             
             const tipoSelect = document.getElementById('reunion-tipo');
             const motivoInput = document.getElementById('reunion-motivo');
@@ -622,15 +614,27 @@ class ReunionesModule {
                 activeAgendaItems.push({ ...point, id: pointId });
             }
             
-            // 3. Guardar el segmento de audio completo
-            const segmentoData = {
-                reunionId: reunionId,
-                ordenDiaId: null,
-                ordenDiaTitulo: 'Grabación Completa',
-                audioData: base64Audio,
-                duracionSecs: 0
-            };
-            await localDB.add('segmentos', segmentoData);
+            // 3. Guardar TODOS los segmentos de audio
+            for (let i = 0; i < files.length; i++) {
+                if (statusEl) statusEl.innerText = `Procesando grabación ${i+1} de ${files.length}...`;
+                const file = files[i];
+                
+                const base64Audio = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
+                
+                const segmentoData = {
+                    reunionId: reunionId,
+                    ordenDiaId: null,
+                    ordenDiaTitulo: files.length > 1 ? `Grabación Externa (Parte ${i+1})` : 'Grabación Completa',
+                    audioData: base64Audio,
+                    duracionSecs: 0
+                };
+                await localDB.add('segmentos', segmentoData);
+            }
             
             // 4. Crear el acta borrador
             const docentes = await localDB.getAll('docentes');

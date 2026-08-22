@@ -194,7 +194,7 @@ app.post('/api/upload-chunk', (req, res) => {
 
 app.post('/api/procesar-audio', async (req, res) => {
     try {
-        const { reunionId, segmentos } = req.body;
+        const { reunionId, segmentos, agenda } = req.body;
         console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
 
         if (!process.env.GOOGLE_API_KEY) {
@@ -302,30 +302,39 @@ app.post('/api/procesar-audio', async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
-                const prompt = `Actúa como un Secretario Técnico Oficial y riguroso de una sesión de Consejo Técnico Escolar (CTE) en México.
+                let prompt = `Actúa como un Secretario Técnico Oficial y riguroso de una sesión de Consejo Técnico Escolar (CTE) en México.
 Tu tarea es analizar exhaustivamente la transcripción o el audio de la sesión y generar el contenido para un Acta Oficial.
 
 REGLAS ESTRICTAS E IRROMPIBLES:
-1. TODO el contenido generado (absolutamente todo) debe estar estrictamente en ESPAÑOL (variante de México). Queda prohibido usar inglés.
-2. El tono debe ser INSTITUCIONAL, FORMAL y OBJETIVO. Limítate a relatar los hechos concretos, quién tomó la palabra y qué se discutió.
-3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Cualquier compromiso, tarea, propuesta aceptada o decisión tomada por el colectivo (incluso si se acordó de manera verbal o casual) DEBE extraerse y agregarse obligatoriamente al arreglo de "acuerdos". Bajo ninguna circunstancia dejes los acuerdos escondidos únicamente dentro de la relatoría del resumen.
-4. No inventes nombres ni datos que no se escuchen claramente.
+1. TODO el contenido generado debe estar en ESPAÑOL (variante de México).
+2. IDENTIFICACIÓN DE ORADORES: Escucha con extrema atención para identificar quién está hablando. NO asumas automáticamente que la reunión la lidera "el Director" o "la Directora". Menciona a los participantes por el nombre o cargo con el que se presenten o sean referidos durante la sesión (ej. 'El supervisor', 'La profesora María', 'El ATP').
+3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Todo compromiso, tarea o propuesta aceptada verbalmente DEBE extraerse y registrarse obligatoriamente en la lista de "acuerdos".
+4. EXTENSIÓN Y DETALLE EXHAUSTIVO: Tienes terminantemente prohibido hacer resúmenes excesivos. Tu relatoría (resumenGeneral) debe ser muy extensa, descriptiva y detallada. Mínimo debes escribir un párrafo denso por cada tema discutido, relatando paso a paso cómo se desarrolló la conversación, y reflejando las múltiples voces.
+`;
 
+                if (agenda && agenda.trim() !== '') {
+                    prompt += `
+5. ADHERENCIA A LA ORDEN DEL DÍA (MUY IMPORTANTE): A continuación te proporciono la Orden del Día Oficial (extraída del PDF de la sesión). Es OBLIGATORIO que estructures tu relatoría detallando cómo se desarrolló cada uno de estos puntos durante el audio:
+--- ORDEN DEL DÍA OFICIAL ---
+${agenda}
+-----------------------------
+`;
+                }
+
+                prompt += `
 Genera una respuesta en formato JSON estricto con la siguiente estructura:
 
 {
-  "temas": ["Lista detallada y formal de los puntos o temas tratados en la reunión (en español)."],
-  "resumenGeneral": "Redacta la Relatoría oficial de la sesión. Estructúrala de manera cronológica o por puntos tratados. Menciona las intervenciones clave de los participantes (ej. 'El director expuso...', 'El colectivo docente acordó...', 'El profesor Juan señaló...'). Debe ser un texto cohesionado, formal y que sirva como evidencia institucional y legal de lo ocurrido en la junta.",
+  "temas": ["Lista detallada y formal de los puntos tratados (basada en el audio y la orden del día)."],
+  "resumenGeneral": "Redacta la Relatoría oficial. DEBE SER UN TEXTO LARGO, EXHAUSTIVO Y DETALLADO. Estructúrala punto por punto siguiendo la Orden del Día. Menciona expresamente quién tomó la palabra en cada intervención (ej. la maestra Laura), qué propuso y cómo reaccionaron los demás. No omitas ningún debate o participación importante.",
   "acuerdos": [
     {
-      "texto": "Redacción formal, clara y precisa de la acción a realizar, compromiso o tarea asignada.",
-      "responsable": "Nombre de la persona, cargo o grupo específico responsable de cumplirlo.",
-      "fecha": "Fecha exacta, periodo (ej. 'Durante el ciclo escolar') o 'Próxima sesión'. Si no se especificó, pon 'Pendiente'."
+      "texto": "Redacción formal, clara y precisa de la acción a realizar.",
+      "responsable": "Nombre o cargo específico responsable de cumplirlo.",
+      "fecha": "Fecha exacta o 'Pendiente'."
     }
   ]
-}
-
-Si en el audio no se llega a ningún acuerdo formal, deja el arreglo de "acuerdos" completamente vacío ([]). Tu prioridad es la precisión institucional.`;
+}`;
 
                 // Ejecutar generación con la API nativa y URIs
                 const result = await model.generateContent([prompt, ...uploadedFiles]);
