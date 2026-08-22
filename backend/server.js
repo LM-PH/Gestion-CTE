@@ -306,10 +306,10 @@ app.post('/api/procesar-audio', async (req, res) => {
 Tu tarea es analizar exhaustivamente la transcripción o el audio de la sesión y generar el contenido para un Acta Oficial.
 
 REGLAS ESTRICTAS E IRROMPIBLES:
-1. TODO el contenido generado (absolutamente todo) debe estar estrictamente en ESPAÑOL (variante de México). Queda estrictamente prohibido usar inglés o traducir conceptos.
-2. El tono debe ser INSTITUCIONAL, FORMAL y OBJETIVO. No uses lenguaje emocional, romántico ni narrativo (evita frases como "ejemplo inspirador" o "transitando rápidamente").
-3. Limítate a relatar los hechos concretos, quién tomó la palabra, qué se discutió, y a qué conclusión se llegó.
-4. No inventes nombres, datos ni acuerdos que no se escuchen claramente en el audio.
+1. TODO el contenido generado (absolutamente todo) debe estar estrictamente en ESPAÑOL (variante de México). Queda prohibido usar inglés.
+2. El tono debe ser INSTITUCIONAL, FORMAL y OBJETIVO. Limítate a relatar los hechos concretos, quién tomó la palabra y qué se discutió.
+3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Cualquier compromiso, tarea, propuesta aceptada o decisión tomada por el colectivo (incluso si se acordó de manera verbal o casual) DEBE extraerse y agregarse obligatoriamente al arreglo de "acuerdos". Bajo ninguna circunstancia dejes los acuerdos escondidos únicamente dentro de la relatoría del resumen.
+4. No inventes nombres ni datos que no se escuchen claramente.
 
 Genera una respuesta en formato JSON estricto con la siguiente estructura:
 
