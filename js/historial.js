@@ -238,7 +238,7 @@ class HistorialModule {
             const segmentos = await localDB.getByIndex('segmentos', 'reunionId', reunionId);
             
             // Chunking logic para evitar el Error 413 Payload Too Large
-            const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB en caracteres
+            const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB en caracteres para máxima seguridad
             const processedSegmentos = [];
             
             for (let i = 0; i < segmentos.length; i++) {
@@ -258,7 +258,9 @@ class HistorialModule {
                         });
                         
                         if (!chunkRes.ok) {
-                            throw new Error("Fallo al subir un fragmento del audio gigante.");
+                            const errorText = await chunkRes.text();
+                            console.error("Error en chunk:", chunkRes.status, errorText);
+                            throw new Error(`Fallo al subir fragmento ${c+1}. Estado: ${chunkRes.status}. Detalle: ${errorText.substring(0, 100)}`);
                         }
                     }
                     
