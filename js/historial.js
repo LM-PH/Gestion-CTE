@@ -330,9 +330,21 @@ class HistorialModule {
             while (!isCompleted) {
                 await new Promise(resolve => setTimeout(resolve, 5000)); // Esperar 5 segundos
                 
-                const pollRes = await fetch(`${window.ENV.API_URL}/api/procesar-audio/status/${taskId}`);
+                let pollRes;
+                try {
+                    pollRes = await fetch(`${window.ENV.API_URL}/api/procesar-audio/status/${taskId}`);
+                } catch (networkError) {
+                    // Si el servidor se reinicia o falla la red, fetch lanza error nativo (Failed to fetch).
+                    // Lo atrapamos aquí para que no rompa el ciclo y vuelva a intentar.
+                    console.warn("Fallo de red consultando estado (Failed to fetch), reintentando en 5s...", networkError);
+                    continue;
+                }
+                
                 if (!pollRes.ok) {
-                    console.warn("Fallo temporal consultando estado, reintentando...");
+                    if (pollRes.status === 404) {
+                        throw new Error("El servidor se reinició o perdió la tarea. Por favor, vuelve a dar clic en Autocompletar con IA.");
+                    }
+                    console.warn("El servidor respondió con error temporal (ej. 502/504), reintentando...");
                     continue;
                 }
                 

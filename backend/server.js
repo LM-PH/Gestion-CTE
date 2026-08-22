@@ -274,7 +274,7 @@ app.post('/api/procesar-audio', async (req, res) => {
         (async () => {
             const uploadedFiles = [];
             try {
-                audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos a Google Gemini...' });
+                audioJobs.set(taskId, { status: 'processing', progress: 'Ensamblando y subiendo audios a la nube...' });
                 
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.5-flash",
@@ -292,17 +292,33 @@ app.post('/api/procesar-audio', async (req, res) => {
                         if (!fs.existsSync(assembledPath)) {
                             throw new Error(`Falta archivo ensamblado para uploadId: ${seg.uploadId}`);
                         }
-                        const fullData = fs.readFileSync(assembledPath, 'utf8');
+                        
+                        // Para evitar Memory Leaks, leemos, procesamos y forzamos garbage collection
+                        let fullData = fs.readFileSync(assembledPath, 'utf8');
                         const mimeTypeMatch = fullData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
                         if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
-                        base64Data = fullData.includes('base64,') ? fullData.split('base64,')[1] : fullData;
                         
-                        // Limpiar ensamblado
+                        const startIndex = fullData.indexOf('base64,');
+                        if (startIndex !== -1) {
+                            base64Data = fullData.substring(startIndex + 7);
+                        } else {
+                            base64Data = fullData;
+                        }
+                        
+                        fullData = null; // Liberar memoria RAM
+                        
+                        // Limpiar ensamblado original
                         fs.unlinkSync(assembledPath);
                     } else if (seg.audioData) {
                         const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
                         if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
-                        base64Data = seg.audioData.includes('base64,') ? seg.audioData.split('base64,')[1] : seg.audioData;
+                        
+                        const startIndex = seg.audioData.indexOf('base64,');
+                        if (startIndex !== -1) {
+                            base64Data = seg.audioData.substring(startIndex + 7);
+                        } else {
+                            base64Data = seg.audioData;
+                        }
                     } else {
                         continue;
                     }
@@ -318,6 +334,8 @@ app.post('/api/procesar-audio', async (req, res) => {
                     const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
                     
                     fs.writeFileSync(tempFilePath, base64Data, 'base64');
+                    base64Data = null; // Liberar memoria RAM
+                    
                     console.log(`[IA] Guardado archivo temporal: ${tempFilePath} (${mimeType})`);
 
                     // Subir usando GoogleAIFileManager (soporta archivos masivos)
@@ -325,6 +343,8 @@ app.post('/api/procesar-audio', async (req, res) => {
                         mimeType: mimeType,
                         displayName: `Audio CTE ${reunionId} - Parte ${i}`
                     });
+                    
+                    fs.unlinkSync(tempFilePath); // Borrar temporal una vez subido
                     
                     console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
                     
