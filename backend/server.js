@@ -191,10 +191,6 @@ app.post('/api/upload-chunk', (req, res) => {
     }
 });
 
-app.post('/api/procesar-audio', async (req, res) => {
-    try {
-        const { reunionId, segmentos } = req.body;
-        console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
 
 app.post('/api/procesar-audio', async (req, res) => {
     try {
