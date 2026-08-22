@@ -220,7 +220,7 @@ app.post('/api/procesar-audio', async (req, res) => {
             try {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos a Google Gemini...' });
                 
-                const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-pro" });
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
                 for (let i = 0; i < segmentos.length; i++) {
                     const seg = segmentos[i];
