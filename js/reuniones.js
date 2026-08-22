@@ -439,7 +439,7 @@ class ReunionesModule {
         // Autocompletar la UI de datos de sesión si se detectaron
         const statusEl = document.getElementById('agenda-file-status');
         if (details.escuela && statusEl) {
-            statusEl.innerHTML += `<br/><span style="color:#10b981; font-size:0.8rem; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Plantel detectado: ${details.escuela}</span>`;
+            statusEl.innerHTML += `<br/><span style="color:#10b981; font-size:0.8rem; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Sede detectada: ${details.escuela}</span>`;
         }
         
         if (details.tipoReunion) {
