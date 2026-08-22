@@ -293,6 +293,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                     model: "gemini-2.5-flash",
                     generationConfig: { 
                         responseMimeType: "application/json",
+                        maxOutputTokens: 8192,
                         responseSchema: {
                             type: SchemaType.OBJECT,
                             properties: {
@@ -303,7 +304,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                 },
                                 resumenGeneral: {
                                     type: SchemaType.STRING,
-                                    description: "Relatoría oficial muy extensa, descriptiva y detallada. Estructurada punto por punto siguiendo la Orden del Día. Menciona expresamente quién tomó la palabra, qué propuso y reacciones. No omitas ningún debate."
+                                    description: "Relatoría oficial muy extensa y detallada. Creada ÚNICA y EXCLUSIVAMENTE a partir de lo escuchado en los audios."
                                 },
                                 acuerdos: {
                                     type: SchemaType.ARRAY,
@@ -315,7 +316,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                             fecha: { type: SchemaType.STRING }
                                         }
                                     },
-                                    description: "Lista de todos los acuerdos, compromisos, tareas o propuestas aceptadas."
+                                    description: "Solo compromisos reales y explícitos."
                                 }
                             },
                             required: ["temas", "resumenGeneral", "acuerdos"]
@@ -484,27 +485,28 @@ app.post('/api/procesar-audio', async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
-                let prompt = `Actúa como un Secretario Técnico Oficial y riguroso de una sesión de Consejo Técnico Escolar (CTE) en México.
-Tu tarea es analizar exhaustivamente TODOS LOS AUDIOS adjuntos (que componen la sesión completa) y generar el contenido para un Acta Oficial. Es OBLIGATORIO que escuches y consideres cada uno de los archivos de audio adjuntos.
+                let prompt = `Actúa como un Secretario Técnico Oficial de una sesión de Consejo Técnico Escolar (CTE).
+Tu tarea principal e inquebrantable es analizar TODOS LOS AUDIOS adjuntos y generar el acta BASÁNDOTE 100% EN LO QUE ESCUCHAS, ignorando documentos externos.
 
-REGLAS ESTRICTAS E IRROMPIBLES:
-1. PRIORIDAD ABSOLUTA AL AUDIO: El resumen y los acuerdos deben basarse ÚNICA Y EXCLUSIVAMENTE en lo que realmente se dice en los audios. TIENES TERMINANTEMENTE PROHIBIDO INVENTAR EVENTOS, acuerdos o discusiones que no estén explícitamente en las grabaciones.
-2. IDENTIFICACIÓN DE ORADORES: Identifica quién está hablando basándote en los audios. Menciona a los participantes por el nombre o cargo con el que se presenten (ej. 'El supervisor', 'La profesora María').
-3. EXTRACCIÓN DE ACUERDOS: Todo compromiso, tarea o propuesta aceptada verbalmente en CUALQUIER PARTE DE LOS AUDIOS DEBE extraerse a la lista de "acuerdos".
-4. EXTENSIÓN Y DETALLE EXHAUSTIVO: Tu relatoría (resumenGeneral) debe ser descriptiva y detallada, reflejando fielmente el desarrollo cronológico de la conversación en los audios, indicando quién dijo qué y cómo reaccionaron.
+REGLAS DE ORO:
+1. AUDIO ES LA ÚNICA VERDAD: Redacta la relatoría (resumenGeneral) narrando EXCLUSIVAMENTE lo que se habló en los audios. Si algo venía en la agenda pero no se habló, NO LO INVENTES.
+2. NOMBRES GENERALES: Si no estás seguro de quién habló, usa términos genéricos como "Un docente", "El colectivo", "Un participante". Solo usa nombres propios si se dicen claramente en el audio.
+3. ACUERDOS ESTRICTOS Y ESPECÍFICOS: En el campo "acuerdos", SOLO extrae compromisos reales y específicos (ej. "Entregar calificaciones el viernes"). Ignora sugerencias vagas o reflexiones; solo queremos tareas pactadas.
+4. EXTENSIÓN: La relatoría debe ser profunda y detallada, abarcando TODO el tiempo de grabación de TODOS los audios. No la cortes.
 `;
 
                 if (agenda && agenda.trim() !== '') {
                     prompt += `
-5. GUÍA DE ORDEN DEL DÍA: A continuación te proporciono la Agenda/Orden del Día Oficial. ÚSALA ÚNICAMENTE COMO UNA BRÚJULA para darle una estructura formal a tu relatoría.
-IMPORTANTE: Si un punto de esta Orden del Día NO se discutió en los audios, OMÍTELO en la relatoría o menciona que no fue abordado. NO inventes cosas para rellenar los puntos de la agenda. Para la sección "temas" de tu respuesta JSON, devuelve esta misma lista de agenda de forma limpia y formateada.
---- ORDEN DEL DÍA OFICIAL ---
+5. AGENDA (SOLO REFERENCIA ESTRUCTURAL):
+Se te proporciona la Orden del Día original. Tu misión es extraer los puntos de esta agenda tal cual están escritos para rellenar el campo "temas" del JSON. 
+Para la relatoría, usa la agenda solo para saber el orden de los temas, pero RECUERDA: relata SOLO lo que escuches en el audio.
+--- AGENDA ---
 ${agenda}
------------------------------
+--------------
 `;
                 } else {
                     prompt += `
-5. TEMAS TRATADOS: Como no se proporcionó una orden del día previa, infiere y lista en el campo "temas" los puntos principales que se abordaron basándote 100% en el audio.
+5. TEMAS TRATADOS: Como no hay agenda previa, extrae del audio los temas principales y colócalos en el campo "temas".
 `;
                 }
 
