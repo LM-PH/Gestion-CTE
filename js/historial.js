@@ -237,11 +237,50 @@ class HistorialModule {
             // Obtenemos los segmentos de la base local
             const segmentos = await localDB.getByIndex('segmentos', 'reunionId', reunionId);
             
+            // Chunking logic para evitar el Error 413 Payload Too Large
+            const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB en caracteres
+            const processedSegmentos = [];
+            
+            for (let i = 0; i < segmentos.length; i++) {
+                const seg = segmentos[i];
+                if (seg.audioData && seg.audioData.length > CHUNK_SIZE) {
+                    const uploadId = `upload_${Date.now()}_${i}`;
+                    const totalChunks = Math.ceil(seg.audioData.length / CHUNK_SIZE);
+                    
+                    for (let c = 0; c < totalChunks; c++) {
+                        this.btnIaMagic.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Subiendo fragmento ${c + 1}/${totalChunks}...`;
+                        const chunkData = seg.audioData.substring(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE);
+                        
+                        const chunkRes = await fetch(`${window.ENV.API_URL}/api/upload-chunk`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ uploadId, chunkIndex: c, totalChunks, data: chunkData })
+                        });
+                        
+                        if (!chunkRes.ok) {
+                            throw new Error("Fallo al subir un fragmento del audio gigante.");
+                        }
+                    }
+                    
+                    // Modificar segmento para enviar solo la referencia
+                    processedSegmentos.push({
+                        ...seg,
+                        audioData: null,
+                        isChunked: true,
+                        uploadId: uploadId
+                    });
+                } else {
+                    processedSegmentos.push(seg);
+                }
+            }
+
+            this.btnIaMagic.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando análisis...';
+            
             // Llamada al backend
             const response = await fetch(`${window.ENV.API_URL}/api/procesar-audio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reunionId, segmentos })
+                body: JSON.stringify({ reunionId, segmentos: processedSegmentos })
             });
 
             if (!response.ok) {

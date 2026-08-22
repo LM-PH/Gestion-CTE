@@ -174,6 +174,23 @@ const fileManager = new GoogleAIFileManager(process.env.GOOGLE_API_KEY);
 // Memoria para almacenar el estado de las tareas de IA (Polling)
 const audioJobs = new Map();
 
+app.post('/api/upload-chunk', (req, res) => {
+    try {
+        const { uploadId, chunkIndex, totalChunks, data } = req.body;
+        if (!uploadId || !data) return res.status(400).json({ error: 'Faltan parámetros' });
+        
+        const tempPath = path.join(os.tmpdir(), `upload_${uploadId}.tmp`);
+        
+        // Append data (chunk base64 string)
+        fs.appendFileSync(tempPath, data);
+        
+        res.json({ success: true, chunkIndex, totalChunks });
+    } catch (e) {
+        console.error("Error en upload-chunk:", e);
+        res.status(500).json({ error: 'Fallo al procesar chunk' });
+    }
+});
+
 app.post('/api/procesar-audio', async (req, res) => {
     try {
         const { reunionId, segmentos } = req.body;
@@ -211,10 +228,29 @@ app.post('/api/procesar-audio', async (req, res) => {
 
                 for (let i = 0; i < segmentos.length; i++) {
                     const seg = segmentos[i];
-                    if (!seg.audioData || !seg.audioData.includes('base64,')) continue;
                     
-                    const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
-                    let mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
+                    let mimeType = "audio/webm";
+                    let base64Data = "";
+                    
+                    if (seg.isChunked && seg.uploadId) {
+                        const assembledPath = path.join(os.tmpdir(), `upload_${seg.uploadId}.tmp`);
+                        if (!fs.existsSync(assembledPath)) {
+                            throw new Error(`Falta archivo ensamblado para uploadId: ${seg.uploadId}`);
+                        }
+                        const fullData = fs.readFileSync(assembledPath, 'utf8');
+                        const mimeTypeMatch = fullData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
+                        if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
+                        base64Data = fullData.includes('base64,') ? fullData.split('base64,')[1] : fullData;
+                        
+                        // Limpiar ensamblado
+                        fs.unlinkSync(assembledPath);
+                    } else if (seg.audioData) {
+                        const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
+                        if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
+                        base64Data = seg.audioData.includes('base64,') ? seg.audioData.split('base64,')[1] : seg.audioData;
+                    } else {
+                        continue;
+                    }
                     
                     if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
                         mimeType = 'audio/aac';
@@ -223,7 +259,6 @@ app.post('/api/procesar-audio', async (req, res) => {
                     }
 
                     // Escribir archivo temporal a disco
-                    const base64Data = seg.audioData.split('base64,')[1];
                     const extension = mimeType.split('/')[1] || 'webm';
                     const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
                     
