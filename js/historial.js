@@ -262,7 +262,42 @@ class HistorialModule {
                 }
             }
 
-            const { data } = await response.json();
+            const initialData = await response.json();
+            const taskId = initialData.taskId;
+
+            if (!taskId) {
+                throw new Error("No se recibió un ID de tarea válido desde el servidor.");
+            }
+
+            // === INICIAR POLLING ASÍNCRONO ===
+            let isCompleted = false;
+            let finalData = null;
+
+            while (!isCompleted) {
+                await new Promise(resolve => setTimeout(resolve, 5000)); // Esperar 5 segundos
+                
+                const pollRes = await fetch(`${window.ENV.API_URL}/api/procesar-audio/status/${taskId}`);
+                if (!pollRes.ok) {
+                    console.warn("Fallo temporal consultando estado, reintentando...");
+                    continue;
+                }
+                
+                const pollData = await pollRes.json();
+                
+                if (pollData.status === 'completed') {
+                    isCompleted = true;
+                    finalData = pollData.data;
+                } else if (pollData.status === 'error') {
+                    throw new Error(pollData.error || "Fallo durante el procesamiento en segundo plano.");
+                } else {
+                    // Actualizar UI con el progreso devuelto por el servidor
+                    if (pollData.progress) {
+                        this.btnIaMagic.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${pollData.progress}`;
+                    }
+                }
+            }
+            
+            const data = finalData;
             
             // Autocompletamos los campos del acta con los datos de la IA
             if (data.temas && data.temas.length > 0) {

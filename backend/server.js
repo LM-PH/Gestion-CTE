@@ -7,9 +7,9 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
-// Incrementar límite de payload para audios en base64
-app.use(express.json({ limit: '100mb' })); 
-app.use(express.urlencoded({ limit: '100mb', extended: true }));
+// Incrementar límite de payload para audios muy largos en base64 (500mb)
+app.use(express.json({ limit: '500mb' })); 
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 const port = process.env.PORT || 3001;
 // Por defecto conecta a localhost si no hay URI
@@ -159,12 +159,25 @@ app.post('/api/actas', async (req, res) => {
     }
 });
 // ==========================================
-// ENDPOINT IA - PROCESAMIENTO DE AUDIO (GEMINI 1.5 PRO)
+// ENDPOINT IA - PROCESAMIENTO DE AUDIO (GEMINI 1.5 PRO / FLASH)
 // ==========================================
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleAIFileManager } = require("@google/generative-ai/server");
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
-// Inicializar Google AI con la llave desde las variables de entorno (Forzando v1 estable)
+// Inicializar Google AI con la llave desde las variables de entorno
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const fileManager = new GoogleAIFileManager(process.env.GOOGLE_API_KEY);
+
+// Memoria para almacenar el estado de las tareas de IA (Polling)
+const audioJobs = new Map();
+
+app.post('/api/procesar-audio', async (req, res) => {
+    try {
+        const { reunionId, segmentos } = req.body;
+        console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
 
 app.post('/api/procesar-audio', async (req, res) => {
     try {
@@ -179,89 +192,176 @@ app.post('/api/procesar-audio', async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        // 1. Preparar el modelo con el nombre completo del recurso
-        const model = genAI.getGenerativeModel({ 
-            model: "models/gemini-1.5-flash"
-        });
+        // 1. Generar ID único de tarea para polling
+        const taskId = `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        
+        // 2. Responder de inmediato al frontend para evitar Timeout de Render
+        res.json({ success: true, taskId, status: 'processing' });
+        
+        // Registrar tarea en memoria
+        audioJobs.set(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });
 
-        // 2. Convertir segmentos
-        const audioParts = segmentos.map((seg, index) => {
-            if (!seg.audioData || !seg.audioData.includes('base64,')) return null;
-            
-            // Extraer tipo mime de forma dinámica (ej. audio/mp3, audio/webm, audio/m4a, etc.)
-            const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
-            let mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
-            
-            // Mapeos para mayor compatibilidad con Gemini
-            if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
-                mimeType = 'audio/aac'; // Gemini soporta AAC
-            } else if (mimeType.includes('mpeg')) {
-                mimeType = 'audio/mp3'; // mpeg suele ser mp3
-            }
-            
-            return {
-                inlineData: {
-                    data: seg.audioData.split('base64,')[1],
-                    mimeType: mimeType
+        // === PROCESAMIENTO EN SEGUNDO PLANO (Async, sin bloquear la respuesta) ===
+        (async () => {
+            const uploadedFiles = [];
+            try {
+                audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos a Google Gemini...' });
+                
+                const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-pro" });
+
+                for (let i = 0; i < segmentos.length; i++) {
+                    const seg = segmentos[i];
+                    if (!seg.audioData || !seg.audioData.includes('base64,')) continue;
+                    
+                    const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
+                    let mimeType = mimeTypeMatch ? mimeTypeMatch[1] : "audio/webm";
+                    
+                    if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
+                        mimeType = 'audio/aac';
+                    } else if (mimeType.includes('mpeg')) {
+                        mimeType = 'audio/mp3';
+                    }
+
+                    // Escribir archivo temporal a disco
+                    const base64Data = seg.audioData.split('base64,')[1];
+                    const extension = mimeType.split('/')[1] || 'webm';
+                    const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
+                    
+                    fs.writeFileSync(tempFilePath, base64Data, 'base64');
+                    console.log(`[IA] Guardado archivo temporal: ${tempFilePath} (${mimeType})`);
+
+                    // Subir usando GoogleAIFileManager (soporta archivos masivos)
+                    const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+                        mimeType: mimeType,
+                        displayName: `Audio CTE ${reunionId} - Parte ${i}`
+                    });
+                    
+                    console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
+                    
+                    // Esperar a que el archivo esté ACTIVO en Gemini
+                    let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                    while (fileStatus.state === "PROCESSING") {
+                        console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
+                        await new Promise((resolve) => setTimeout(resolve, 5000));
+                        fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                    }
+
+                    if (fileStatus.state === "FAILED") {
+                        throw new Error("El archivo falló al ser procesado por Google Gemini.");
+                    }
+
+                    uploadedFiles.push({
+                        fileData: {
+                            fileUri: uploadResponse.file.uri,
+                            mimeType: uploadResponse.file.mimeType
+                        }
+                    });
+
+                    // Limpiar archivo temporal de disco local
+                    fs.unlinkSync(tempFilePath);
                 }
-            };
-        }).filter(p => p !== null);
 
-        if (audioParts.length === 0) {
-            return res.status(400).json({ error: 'Formato de audio no soportado o vacío.' });
-        }
-
-        console.log(`[IA] Enviando ${audioParts.length} partes a Gemini...`);
-
-        const prompt = `Actúa como secretario de una reunión escolar de Consejo Técnico Escolar (CTE).
-        Analiza con atención el contenido de los audios proporcionados (que corresponden a grabaciones en vivo o audios externos subidos de la sesión). 
-        Genera un acta estructurada en formato JSON estricto con los siguientes campos:
-        
-        {
-          "temas": ["Lista detallada de temas tratados en la reunión"],
-          "resumenGeneral": "Una relatoría narrativa muy detallada e hilada de los hechos ocurridos en la sesión en español. Debe describir a profundidad lo discutido, mencionando qué participante intervino, qué propuestas hicieron y cómo se desarrolló la discusión punto por punto de la orden del día. El texto debe ser formal, explicativo y servir como testimonio completo de la reunión escolar.",
-          "acuerdos": [
-            {
-              "texto": "Detalle claro y completo del acuerdo, compromiso o tarea asignada",
-              "responsable": "Nombre del participante, equipo o grupo responsable (ej. Director, Todo el colectivo, Profesor Juan)",
-              "fecha": "Plazo límite de cumplimiento (ej. Próxima sesión, fecha exacta DD/MM/AAAA, o 'Pendiente')"
-            }
-          ]
-        }
-        
-        Asegúrate de extraer TODOS los compromisos, tareas y acuerdos que se hayan pactado. Si no se tomaron acuerdos en absoluto, deja la lista de acuerdos vacía. No inventes información que no esté en los audios.`;
-
-        const result = await model.generateContent([prompt, ...audioParts]);
-        const response = await result.response;
-        const text = response.text();
-
-        console.log(`[IA] Gemini respondió correctamente.`);
-        
-        // Limpiar JSON
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        const cleanJson = jsonMatch ? jsonMatch[0] : text;
-
-        try {
-            const iaData = JSON.parse(cleanJson);
-            res.json({ success: true, data: iaData });
-        } catch (e) {
-            console.warn("[IA] Error parseando JSON, enviando como texto plano.");
-            res.json({ 
-                success: true, 
-                data: {
-                    temas: ["Resumen"],
-                    resumenGeneral: text,
-                    acuerdos: []
+                if (uploadedFiles.length === 0) {
+                    throw new Error("Formato de audio no soportado o vacío.");
                 }
-            });
-        }
+
+                audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
+                console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
+
+                const prompt = `Actúa como secretario de una reunión escolar de Consejo Técnico Escolar (CTE).
+                Analiza con atención el contenido de los audios proporcionados (que corresponden a grabaciones en vivo o audios externos subidos de la sesión). 
+                Genera un acta estructurada en formato JSON estricto con los siguientes campos:
+                
+                {
+                  "temas": ["Lista detallada de temas tratados en la reunión"],
+                  "resumenGeneral": "Una relatoría narrativa muy detallada e hilada de los hechos ocurridos en la sesión en español. Debe describir a profundidad lo discutido, mencionando qué participante intervino, qué propuestas hicieron y cómo se desarrolló la discusión punto por punto de la orden del día. El texto debe ser formal, explicativo y servir como testimonio completo de la reunión escolar.",
+                  "acuerdos": [
+                    {
+                      "texto": "Detalle claro y completo del acuerdo, compromiso o tarea asignada",
+                      "responsable": "Nombre del participante, equipo o grupo responsable (ej. Director, Todo el colectivo, Profesor Juan)",
+                      "fecha": "Plazo límite de cumplimiento (ej. Próxima sesión, fecha exacta DD/MM/AAAA, o 'Pendiente')"
+                    }
+                  ]
+                }
+                
+                Asegúrate de extraer TODOS los compromisos, tareas y acuerdos que se hayan pactado. Si no se tomaron acuerdos en absoluto, deja la lista de acuerdos vacía. No inventes información que no esté en los audios.`;
+
+                // Ejecutar generación con la API nativa y URIs
+                const result = await model.generateContent([prompt, ...uploadedFiles]);
+                const response = await result.response;
+                const text = response.text();
+
+                console.log(`[IA] Tarea ${taskId} finalizada. Gemini respondió.`);
+                
+                const jsonMatch = text.match(/\{[\s\S]*\}/);
+                const cleanJson = jsonMatch ? jsonMatch[0] : text;
+
+                let iaData;
+                try {
+                    iaData = JSON.parse(cleanJson);
+                } catch (e) {
+                    console.warn(`[IA] Error parseando JSON en tarea ${taskId}, enviando texto plano.`);
+                    iaData = { temas: ["Resumen"], resumenGeneral: text, acuerdos: [] };
+                }
+
+                // Actualizar tarea en memoria como finalizada
+                audioJobs.set(taskId, { status: 'completed', data: iaData });
+
+                // Opcional: Limpiar archivos en la nube de Google tras finalizar (recomendado para privacidad y espacio)
+                for (let uf of uploadedFiles) {
+                    const fname = uf.fileData.fileUri.split('/').pop();
+                    try {
+                        await fileManager.deleteFile(`files/${fname}`);
+                        console.log(`[IA] Archivo remoto files/${fname} eliminado.`);
+                    } catch(delErr) {
+                        console.warn(`[IA] No se pudo eliminar files/${fname}: ${delErr.message}`);
+                    }
+                }
+
+            } catch (error) {
+                console.error(`[IA] ERROR en tarea ${taskId}:`, error);
+                audioJobs.set(taskId, { 
+                    status: 'error', 
+                    error: error.message || 'Error desconocido procesando audio.' 
+                });
+                
+                // Limpiar temporales si algo falló en medio
+                if (uploadedFiles.length === 0) {
+                     // Intentar limpiar todos los tmp de este task
+                     fs.readdirSync(os.tmpdir()).filter(f => f.includes(`audio_${taskId}`)).forEach(f => {
+                         try { fs.unlinkSync(path.join(os.tmpdir(), f)); } catch(e){}
+                     });
+                }
+            }
+        })();
 
     } catch (error) {
-        console.error("[IA] CRITICAL ERROR:", error);
-        res.status(500).json({ 
-            error: 'Error en el motor de IA', 
-            details: error.message || 'Error desconocido'
-        });
+        console.error("[IA] CRITICAL ERROR iniciando tarea:", error);
+        res.status(500).json({ error: 'Error interno en el servidor', details: error.message });
+    }
+});
+
+// GET /api/procesar-audio/status/:taskId
+// Endpoint para que el Frontend consulte cómo va su tarea asíncrona
+app.get('/api/procesar-audio/status/:taskId', (req, res) => {
+    const { taskId } = req.params;
+    const job = audioJobs.get(taskId);
+    
+    if (!job) {
+        return res.status(404).json({ error: 'Tarea no encontrada o expirada.' });
+    }
+
+    if (job.status === 'completed') {
+        // Enviar resultado final
+        res.json({ success: true, status: 'completed', data: job.data });
+        // Limpiar memoria para no llenar la RAM
+        audioJobs.delete(taskId);
+    } else if (job.status === 'error') {
+        res.json({ success: false, status: 'error', error: job.error });
+        audioJobs.delete(taskId);
+    } else {
+        // Aún procesando
+        res.json({ success: true, status: 'processing', progress: job.progress });
     }
 });
 
