@@ -202,31 +202,44 @@ app.post('/api/analizar-pdf', async (req, res) => {
         
         console.log(`[IA] Analizando documento PDF (${text.length} chars)...`);
         
+        const { SchemaType } = require("@google/generative-ai");
+
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash",
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: { 
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        propositos: {
+                            type: SchemaType.STRING,
+                            description: "Propósitos u objetivos generales mencionados en el texto. Resume si es muy largo."
+                        },
+                        organizacion: {
+                            type: SchemaType.STRING,
+                            description: "Extrae la fecha, lugar, sede y/o modalidad. Si no se mencionan, devuelve 'No especificado'."
+                        },
+                        temas: {
+                            type: SchemaType.ARRAY,
+                            items: {
+                                type: SchemaType.OBJECT,
+                                properties: {
+                                    titulo: { type: SchemaType.STRING, description: "Título del tema (obligatorio)" },
+                                    tiempo: { type: SchemaType.STRING, description: "Tiempo asignado (si aplica)" },
+                                    responsables: { type: SchemaType.STRING, description: "Responsables (si aplica)" }
+                                },
+                                required: ["titulo"]
+                            },
+                            description: "Lista con la agenda oficial paso a paso."
+                        }
+                    },
+                    required: ["propositos", "organizacion", "temas"]
+                }
+            }
         });
         
         const prompt = `Analiza el siguiente texto extraído de un documento oficial (Agenda o Guía de Consejo Técnico Escolar).
-Extrae la información clave y devuélvela en un formato JSON estricto.
-
-Reglas:
-1. "propositos": Extrae los propósitos u objetivos generales mencionados en el texto. Resume si es muy largo (un solo párrafo).
-2. "organizacion": Extrae la fecha, lugar, sede y/o modalidad si se mencionan. Si no se mencionan, devuelve "No especificado".
-3. "temas": Crea una lista con la agenda oficial paso a paso. Para cada tema extrae su Título (obligatorio), Tiempo Asignado (si aplica) y Responsable(s) (si aplica).
-
-Estructura JSON requerida:
-{
-  "propositos": "Propósitos de la sesión...",
-  "organizacion": "Sede: Escuela X, Fecha: Y...",
-  "temas": [
-    {
-      "titulo": "Mensaje de Bienvenida",
-      "tiempo": "10 minutos",
-      "responsables": "Director"
-    }
-  ]
-}
+Extrae la información clave.
 
 --- TEXTO DEL DOCUMENTO ---
 ${text}
@@ -236,9 +249,7 @@ ${text}
         const response = await result.response;
         const responseText = response.text();
         
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        const cleanJson = jsonMatch ? jsonMatch[0] : responseText;
-        const data = JSON.parse(cleanJson);
+        const data = JSON.parse(responseText);
         
         res.json({ success: true, data });
     } catch (e) {
@@ -274,11 +285,42 @@ app.post('/api/procesar-audio', async (req, res) => {
         (async () => {
             const uploadedFiles = [];
             try {
-                audioJobs.set(taskId, { status: 'processing', progress: 'Ensamblando y subiendo audios a la nube...' });
+                const { SchemaType } = require("@google/generative-ai");
+
+                audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos y procesando con IA...' });
                 
                 const model = genAI.getGenerativeModel({ 
                     model: "gemini-2.5-flash",
-                    generationConfig: { responseMimeType: "application/json" }
+                    generationConfig: { 
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                temas: {
+                                    type: SchemaType.ARRAY,
+                                    items: { type: SchemaType.STRING },
+                                    description: "Lista detallada de los puntos o temas tratados basados en los audios y la orden del día."
+                                },
+                                resumenGeneral: {
+                                    type: SchemaType.STRING,
+                                    description: "Relatoría oficial muy extensa, descriptiva y detallada. Estructurada punto por punto siguiendo la Orden del Día. Menciona expresamente quién tomó la palabra, qué propuso y reacciones. No omitas ningún debate."
+                                },
+                                acuerdos: {
+                                    type: SchemaType.ARRAY,
+                                    items: {
+                                        type: SchemaType.OBJECT,
+                                        properties: {
+                                            texto: { type: SchemaType.STRING },
+                                            responsable: { type: SchemaType.STRING },
+                                            fecha: { type: SchemaType.STRING }
+                                        }
+                                    },
+                                    description: "Lista de todos los acuerdos, compromisos, tareas o propuestas aceptadas."
+                                }
+                            },
+                            required: ["temas", "resumenGeneral", "acuerdos"]
+                        }
+                    }
                 });
 
                 for (let i = 0; i < segmentos.length; i++) {
@@ -443,38 +485,23 @@ app.post('/api/procesar-audio', async (req, res) => {
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
                 let prompt = `Actúa como un Secretario Técnico Oficial y riguroso de una sesión de Consejo Técnico Escolar (CTE) en México.
-Tu tarea es analizar exhaustivamente la transcripción o el audio de la sesión y generar el contenido para un Acta Oficial.
+Tu tarea es analizar exhaustivamente TODOS LOS AUDIOS adjuntos (que componen la sesión completa) y generar el contenido para un Acta Oficial. Es OBLIGATORIO que escuches y consideres cada uno de los archivos de audio adjuntos.
 
 REGLAS ESTRICTAS E IRROMPIBLES:
 1. TODO el contenido generado debe estar en ESPAÑOL (variante de México).
-2. IDENTIFICACIÓN DE ORADORES: Escucha con extrema atención para identificar quién está hablando. NO asumas automáticamente que la reunión la lidera "el Director" o "la Directora". Menciona a los participantes por el nombre o cargo con el que se presenten o sean referidos durante la sesión (ej. 'El supervisor', 'La profesora María', 'El ATP').
-3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Todo compromiso, tarea o propuesta aceptada verbalmente DEBE extraerse y registrarse obligatoriamente en la lista de "acuerdos".
+2. IDENTIFICACIÓN DE ORADORES: Escucha con extrema atención los audios para identificar quién está hablando. NO asumas automáticamente que la reunión la lidera "el Director" o "la Directora". Menciona a los participantes por el nombre o cargo con el que se presenten o sean referidos durante la sesión (ej. 'El supervisor', 'La profesora María', 'El ATP').
+3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Todo compromiso, tarea o propuesta aceptada verbalmente en CUALQUIER PARTE DE LOS AUDIOS DEBE extraerse y registrarse obligatoriamente en la lista de "acuerdos".
 4. EXTENSIÓN Y DETALLE EXHAUSTIVO: Tienes terminantemente prohibido hacer resúmenes excesivos. Tu relatoría (resumenGeneral) debe ser muy extensa, descriptiva y detallada. Mínimo debes escribir un párrafo denso por cada tema discutido, relatando paso a paso cómo se desarrolló la conversación, y reflejando las múltiples voces.
 `;
 
                 if (agenda && agenda.trim() !== '') {
                     prompt += `
-5. ADHERENCIA A LA ORDEN DEL DÍA (MUY IMPORTANTE): A continuación te proporciono la Orden del Día Oficial (extraída del PDF de la sesión). Es OBLIGATORIO que estructures tu relatoría detallando cómo se desarrolló cada uno de estos puntos durante el audio:
+5. ADHERENCIA A LA ORDEN DEL DÍA (MUY IMPORTANTE): A continuación te proporciono la Orden del Día Oficial (extraída del PDF de la sesión). Es OBLIGATORIO que estructures tu relatoría detallando cómo se desarrolló cada uno de estos puntos a lo largo de TODOS LOS AUDIOS:
 --- ORDEN DEL DÍA OFICIAL ---
 ${agenda}
 -----------------------------
 `;
                 }
-
-                prompt += `
-Genera una respuesta en formato JSON estricto con la siguiente estructura:
-
-{
-  "temas": ["Lista detallada y formal de los puntos tratados (basada en el audio y la orden del día)."],
-  "resumenGeneral": "Redacta la Relatoría oficial. DEBE SER UN TEXTO LARGO, EXHAUSTIVO Y DETALLADO. Estructúrala punto por punto siguiendo la Orden del Día. Menciona expresamente quién tomó la palabra en cada intervención (ej. la maestra Laura), qué propuso y cómo reaccionaron los demás. No omitas ningún debate o participación importante.",
-  "acuerdos": [
-    {
-      "texto": "Redacción formal, clara y precisa de la acción a realizar.",
-      "responsable": "Nombre o cargo específico responsable de cumplirlo.",
-      "fecha": "Fecha exacta o 'Pendiente'."
-    }
-  ]
-}`;
 
                 // Ejecutar generación con la API nativa y URIs
                 const result = await model.generateContent([prompt, ...uploadedFiles]);
@@ -483,12 +510,9 @@ Genera una respuesta en formato JSON estricto con la siguiente estructura:
 
                 console.log(`[IA] Tarea ${taskId} finalizada. Gemini respondió.`);
                 
-                const jsonMatch = text.match(/\{[\s\S]*\}/);
-                const cleanJson = jsonMatch ? jsonMatch[0] : text;
-
                 let iaData;
                 try {
-                    iaData = JSON.parse(cleanJson);
+                    iaData = JSON.parse(text);
                 } catch (e) {
                     console.warn(`[IA] Error parseando JSON en tarea ${taskId}, enviando texto plano.`);
                     iaData = { temas: ["Resumen"], resumenGeneral: text, acuerdos: [] };
