@@ -488,18 +488,23 @@ app.post('/api/procesar-audio', async (req, res) => {
 Tu tarea es analizar exhaustivamente TODOS LOS AUDIOS adjuntos (que componen la sesión completa) y generar el contenido para un Acta Oficial. Es OBLIGATORIO que escuches y consideres cada uno de los archivos de audio adjuntos.
 
 REGLAS ESTRICTAS E IRROMPIBLES:
-1. TODO el contenido generado debe estar en ESPAÑOL (variante de México).
-2. IDENTIFICACIÓN DE ORADORES: Escucha con extrema atención los audios para identificar quién está hablando. NO asumas automáticamente que la reunión la lidera "el Director" o "la Directora". Menciona a los participantes por el nombre o cargo con el que se presenten o sean referidos durante la sesión (ej. 'El supervisor', 'La profesora María', 'El ATP').
-3. EXTRACCIÓN DE ACUERDOS OBLIGATORIA: Todo compromiso, tarea o propuesta aceptada verbalmente en CUALQUIER PARTE DE LOS AUDIOS DEBE extraerse y registrarse obligatoriamente en la lista de "acuerdos".
-4. EXTENSIÓN Y DETALLE EXHAUSTIVO: Tienes terminantemente prohibido hacer resúmenes excesivos. Tu relatoría (resumenGeneral) debe ser muy extensa, descriptiva y detallada. Mínimo debes escribir un párrafo denso por cada tema discutido, relatando paso a paso cómo se desarrolló la conversación, y reflejando las múltiples voces.
+1. PRIORIDAD ABSOLUTA AL AUDIO: El resumen y los acuerdos deben basarse ÚNICA Y EXCLUSIVAMENTE en lo que realmente se dice en los audios. TIENES TERMINANTEMENTE PROHIBIDO INVENTAR EVENTOS, acuerdos o discusiones que no estén explícitamente en las grabaciones.
+2. IDENTIFICACIÓN DE ORADORES: Identifica quién está hablando basándote en los audios. Menciona a los participantes por el nombre o cargo con el que se presenten (ej. 'El supervisor', 'La profesora María').
+3. EXTRACCIÓN DE ACUERDOS: Todo compromiso, tarea o propuesta aceptada verbalmente en CUALQUIER PARTE DE LOS AUDIOS DEBE extraerse a la lista de "acuerdos".
+4. EXTENSIÓN Y DETALLE EXHAUSTIVO: Tu relatoría (resumenGeneral) debe ser descriptiva y detallada, reflejando fielmente el desarrollo cronológico de la conversación en los audios, indicando quién dijo qué y cómo reaccionaron.
 `;
 
                 if (agenda && agenda.trim() !== '') {
                     prompt += `
-5. ADHERENCIA A LA ORDEN DEL DÍA (MUY IMPORTANTE): A continuación te proporciono la Orden del Día Oficial (extraída del PDF de la sesión). Es OBLIGATORIO que estructures tu relatoría detallando cómo se desarrolló cada uno de estos puntos a lo largo de TODOS LOS AUDIOS:
+5. GUÍA DE ORDEN DEL DÍA: A continuación te proporciono la Agenda/Orden del Día Oficial. ÚSALA ÚNICAMENTE COMO UNA BRÚJULA para darle una estructura formal a tu relatoría.
+IMPORTANTE: Si un punto de esta Orden del Día NO se discutió en los audios, OMÍTELO en la relatoría o menciona que no fue abordado. NO inventes cosas para rellenar los puntos de la agenda. Para la sección "temas" de tu respuesta JSON, devuelve esta misma lista de agenda de forma limpia y formateada.
 --- ORDEN DEL DÍA OFICIAL ---
 ${agenda}
 -----------------------------
+`;
+                } else {
+                    prompt += `
+5. TEMAS TRATADOS: Como no se proporcionó una orden del día previa, infiere y lista en el campo "temas" los puntos principales que se abordaron basándote 100% en el audio.
 `;
                 }
 
