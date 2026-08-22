@@ -367,7 +367,11 @@ class HistorialModule {
             
             // Autocompletamos los campos del acta con los datos de la IA
             if (data.temas && data.temas.length > 0) {
-                this.actaOrdenInput.value = data.temas.join('\n');
+                // Solo si la caja de la orden del día está vacía le permitimos a la IA llenarla.
+                // Si el PDF ya la había llenado (o tú la habías editado), la respetamos.
+                if (!this.actaOrdenInput.value || this.actaOrdenInput.value.trim() === '') {
+                    this.actaOrdenInput.value = data.temas.join('\n');
+                }
             }
             /* Removido
             if (data.problematicas && data.problematicas.length > 0) {

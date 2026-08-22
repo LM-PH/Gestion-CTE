@@ -300,11 +300,11 @@ app.post('/api/procesar-audio', async (req, res) => {
                                 temas: {
                                     type: SchemaType.ARRAY,
                                     items: { type: SchemaType.STRING },
-                                    description: "Lista detallada de los puntos o temas tratados basados en los audios y la orden del día."
+                                    description: "Lista de los temas principales de la agenda."
                                 },
                                 resumenGeneral: {
                                     type: SchemaType.STRING,
-                                    description: "Relatoría oficial muy extensa y detallada. Creada ÚNICA y EXCLUSIVAMENTE a partir de lo escuchado en los audios."
+                                    description: "Relatoría oficial extensa y detallada. Escribe EXCLUSIVAMENTE en texto narrativo normal. TIENES PROHIBIDO usar formato JSON, llaves { } o corchetes [ ] dentro de este campo."
                                 },
                                 acuerdos: {
                                     type: SchemaType.ARRAY,
@@ -316,7 +316,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                             fecha: { type: SchemaType.STRING }
                                         }
                                     },
-                                    description: "Solo compromisos reales y explícitos."
+                                    description: "Filtra de manera implacable: EXTRAE SOLO LOS 3 A 8 ACUERDOS OFICIALES MÁS IMPORTANTES. Ignora ideas o sugerencias al aire."
                                 }
                             },
                             required: ["temas", "resumenGeneral", "acuerdos"]
