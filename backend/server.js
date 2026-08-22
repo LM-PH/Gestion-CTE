@@ -293,85 +293,148 @@ app.post('/api/procesar-audio', async (req, res) => {
                             throw new Error(`Falta archivo ensamblado para uploadId: ${seg.uploadId}`);
                         }
                         
-                        // Para evitar Memory Leaks, leemos, procesamos y forzamos garbage collection
-                        let fullData = fs.readFileSync(assembledPath, 'utf8');
-                        const mimeTypeMatch = fullData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
+                        // Leer solo un pedacito para sacar el mimeType
+                        const fd = fs.openSync(assembledPath, 'r');
+                        const buffer = Buffer.alloc(200);
+                        fs.readSync(fd, buffer, 0, 200, 0);
+                        fs.closeSync(fd);
+                        const headerStr = buffer.toString('utf8');
+                        const mimeTypeMatch = headerStr.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
                         if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
                         
-                        const startIndex = fullData.indexOf('base64,');
-                        if (startIndex !== -1) {
-                            base64Data = fullData.substring(startIndex + 7);
-                        } else {
-                            base64Data = fullData;
+                        // Determinar extensión
+                        if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
+                            mimeType = 'audio/aac';
+                        } else if (mimeType.includes('mpeg')) {
+                            mimeType = 'audio/mp3';
                         }
+                        const extension = mimeType.split('/')[1] || 'webm';
+                        const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
                         
-                        fullData = null; // Liberar memoria RAM
+                        // Decodificar Base64 a Binario por Tuberías (Streams) para EVITAR OOM
+                        await new Promise((resolve, reject) => {
+                            const readStream = fs.createReadStream(assembledPath, { encoding: 'utf8', highWaterMark: 64 * 1024 });
+                            const writeStream = fs.createWriteStream(tempFilePath);
+                            
+                            let headerStripped = false;
+                            let leftover = '';
+
+                            readStream.on('data', (chunk) => {
+                                let dataToProcess = leftover + chunk;
+                                
+                                if (!headerStripped) {
+                                    const commaIndex = dataToProcess.indexOf(',');
+                                    if (commaIndex !== -1) {
+                                        dataToProcess = dataToProcess.substring(commaIndex + 1);
+                                        headerStripped = true;
+                                    } else if (dataToProcess.length > 200) {
+                                        headerStripped = true;
+                                    } else {
+                                        leftover = dataToProcess;
+                                        return;
+                                    }
+                                }
+                                
+                                const validLength = Math.floor(dataToProcess.length / 4) * 4;
+                                const processableData = dataToProcess.substring(0, validLength);
+                                leftover = dataToProcess.substring(validLength);
+                                
+                                if (processableData.length > 0) {
+                                    writeStream.write(Buffer.from(processableData, 'base64'));
+                                }
+                            });
+
+                            readStream.on('end', () => {
+                                if (leftover.length > 0) {
+                                    writeStream.write(Buffer.from(leftover, 'base64'));
+                                }
+                                writeStream.end();
+                            });
+                            
+                            writeStream.on('finish', resolve);
+                            writeStream.on('error', reject);
+                            readStream.on('error', reject);
+                        });
                         
-                        // Limpiar ensamblado original
-                        fs.unlinkSync(assembledPath);
+                        fs.unlinkSync(assembledPath); // Limpiar ensamblado original
+                        console.log(`[IA] Guardado archivo temporal (STREAM): ${tempFilePath} (${mimeType})`);
+                        
+                        // === SUBIR A GEMINI ===
+                        const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+                            mimeType: mimeType,
+                            displayName: `Audio CTE ${reunionId} - Parte ${i}`
+                        });
+                        
+                        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                        
+                        console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
+                        
+                        let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        while (fileStatus.state === "PROCESSING") {
+                            console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
+                            await new Promise((resolve) => setTimeout(resolve, 5000));
+                            fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        }
+
+                        if (fileStatus.state === "FAILED") {
+                            throw new Error("El archivo falló al ser procesado por Google Gemini.");
+                        }
+
+                        uploadedFiles.push({ fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        
                     } else if (seg.audioData) {
+                        // Flujo antiguo para archivos pequeños no fragmentados
                         const mimeTypeMatch = seg.audioData.match(/^data:(audio\/[a-zA-Z0-9.-]+);base64,/);
                         if (mimeTypeMatch) mimeType = mimeTypeMatch[1];
                         
+                        let base64Data;
                         const startIndex = seg.audioData.indexOf('base64,');
                         if (startIndex !== -1) {
                             base64Data = seg.audioData.substring(startIndex + 7);
                         } else {
                             base64Data = seg.audioData;
                         }
+                        
+                        if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
+                            mimeType = 'audio/aac';
+                        } else if (mimeType.includes('mpeg')) {
+                            mimeType = 'audio/mp3';
+                        }
+
+                        const extension = mimeType.split('/')[1] || 'webm';
+                        const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
+                        
+                        fs.writeFileSync(tempFilePath, base64Data, 'base64');
+                        base64Data = null; 
+                        
+                        console.log(`[IA] Guardado archivo temporal (SYNC): ${tempFilePath} (${mimeType})`);
+
+                        const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+                            mimeType: mimeType,
+                            displayName: `Audio CTE ${reunionId} - Parte ${i}`
+                        });
+                        
+                        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                        
+                        console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
+                        
+                        let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        while (fileStatus.state === "PROCESSING") {
+                            console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
+                            await new Promise((resolve) => setTimeout(resolve, 5000));
+                            fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        }
+
+                        if (fileStatus.state === "FAILED") {
+                            throw new Error("El archivo falló al ser procesado por Google Gemini.");
+                        }
+
+                        uploadedFiles.push({ fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        
                     } else {
                         continue;
                     }
-                    
-                    if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('x-m4a')) {
-                        mimeType = 'audio/aac';
-                    } else if (mimeType.includes('mpeg')) {
-                        mimeType = 'audio/mp3';
-                    }
-
-                    // Escribir archivo temporal a disco
-                    const extension = mimeType.split('/')[1] || 'webm';
-                    const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
-                    
-                    fs.writeFileSync(tempFilePath, base64Data, 'base64');
-                    base64Data = null; // Liberar memoria RAM
-                    
-                    console.log(`[IA] Guardado archivo temporal: ${tempFilePath} (${mimeType})`);
-
-                    // Subir usando GoogleAIFileManager (soporta archivos masivos)
-                    const uploadResponse = await fileManager.uploadFile(tempFilePath, {
-                        mimeType: mimeType,
-                        displayName: `Audio CTE ${reunionId} - Parte ${i}`
-                    });
-                    
-                    try {
-                        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); // Borrar temporal de forma segura
-                    } catch (e) {
-                        console.warn(`[IA] Aviso: no se pudo borrar tempFilePath: ${e.message}`);
-                    }
-                    
-                    console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
-                    
-                    // Esperar a que el archivo esté ACTIVO en Gemini
-                    let fileStatus = await fileManager.getFile(uploadResponse.file.name);
-                    while (fileStatus.state === "PROCESSING") {
-                        console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
-                        await new Promise((resolve) => setTimeout(resolve, 5000));
-                        fileStatus = await fileManager.getFile(uploadResponse.file.name);
-                    }
-
-                    if (fileStatus.state === "FAILED") {
-                        throw new Error("El archivo falló al ser procesado por Google Gemini.");
-                    }
-
-                    uploadedFiles.push({
-                        fileData: {
-                            fileUri: uploadResponse.file.uri,
-                            mimeType: uploadResponse.file.mimeType
-                        }
-                    });
                 }
-
                 if (uploadedFiles.length === 0) {
                     throw new Error("Formato de audio no soportado o vacío.");
                 }
