@@ -169,13 +169,24 @@
                         
                         <div style="color: var(--text-muted); font-size: 0.9rem; font-weight: 500;">— O —</div>
                         
-                        <div style="position: relative; display: inline-block;">
-                            <button class="btn" style="background: #10b981; color: white; padding: 0.75rem 2rem; border-radius: var(--radius); font-weight: 600;">
-                                <i class="fa-solid fa-cloud-arrow-up"></i> Subir Grabación Completa
-                            </button>
-                            <input type="file" id="external-audio-input" accept="audio/*" multiple style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;" onchange="reunionesModule.handleExternalAudio(event)">
+                        <div id="audio-slots-container" style="width: 100%; max-width: 500px; background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border);">
+                            <h4 style="margin-top: 0; margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-main);"><i class="fa-solid fa-layer-group"></i> Subir Grabación (Secuencia)</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; text-align: left;">Agrega espacios para subir los audios de la sesión en el orden correcto.</p>
+                            
+                            <div id="audio-slots-list" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem;">
+                                <!-- Slots inyectados por JS -->
+                            </div>
+                            
+                            <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                                <button class="btn" style="background: transparent; color: #10b981; border: 1px dashed #10b981; font-weight: 600;" onclick="reunionesModule.addAudioSlot()">
+                                    <i class="fa-solid fa-plus"></i> Añadir espacio para audio
+                                </button>
+                                <button id="btn-process-sequence" class="btn" style="background: #10b981; color: white; border-radius: var(--radius); font-weight: 600; margin-top: 0.5rem;" onclick="reunionesModule.processAudioSequence()">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Procesar Audios Ordenados
+                                </button>
+                            </div>
+                            <span id="audio-file-status" style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-top: 1rem; font-weight: 600;"></span>
                         </div>
-                        <span id="audio-file-status" style="font-size: 0.85rem; color: var(--text-muted);"></span>
                     </div>
                 </div>
 

@@ -444,6 +444,16 @@ class ReunionesModule {
         
         if (details.tipoReunion) {
             const tipoSelect = document.getElementById('reunion-tipo');
+            if (tipoSelect) tipoSelect.value = details.tipoReunion;
+        }
+        
+        if (details.motivoReunion) {
+            const motivoInput = document.getElementById('reunion-motivo');
+            if (motivoInput) motivoInput.value = details.motivoReunion;
+        }
+    }
+
+    /**
      * Procesa el texto extraído del documento enviándolo a la Inteligencia Artificial (Gemini)
      * para que estructure la Orden del Día y extraiga la Organización y Propósitos.
      * @param {string} text 
@@ -581,19 +591,81 @@ class ReunionesModule {
     }
 
     /**
-     * Maneja la subida de una grabación externa completa
-     * @param {Event} event 
+     * Agrega un nuevo espacio (slot) para cargar un audio en secuencia
      */
-    async handleExternalAudio(event) {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
+    addAudioSlot() {
+        const container = document.getElementById('audio-slots-list');
+        if (!container) return;
+        
+        const slotCount = container.children.length + 1;
+        const slotId = `audio-slot-${Date.now()}`;
+        
+        const slotDiv = document.createElement('div');
+        slotDiv.id = slotId;
+        slotDiv.style.cssText = "display: flex; align-items: center; gap: 0.5rem; background: white; padding: 0.75rem; border: 1px solid var(--border); border-radius: 6px;";
+        
+        slotDiv.innerHTML = `
+            <div style="flex-shrink: 0; width: 24px; height: 24px; background: #e2e8f0; color: #475569; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;">${slotCount}</div>
+            <input type="file" accept="audio/*" class="audio-sequence-input" style="flex-grow: 1; font-size: 0.85rem;" onchange="reunionesModule.updateSlotUI(this)">
+            <button class="btn btn-sm" style="background: transparent; color: #ef4444; padding: 0.25rem 0.5rem;" onclick="this.parentElement.remove(); reunionesModule.renumberSlots();">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
+        
+        container.appendChild(slotDiv);
+    }
+    
+    /**
+     * Actualiza el número de los slots si se elimina alguno
+     */
+    renumberSlots() {
+        const container = document.getElementById('audio-slots-list');
+        if (!container) return;
+        Array.from(container.children).forEach((child, index) => {
+            const numberBadge = child.querySelector('div');
+            if (numberBadge) numberBadge.innerText = index + 1;
+        });
+    }
+
+    /**
+     * Se llama cuando cambia el archivo en un slot para darle estilo visual
+     */
+    updateSlotUI(input) {
+        if (input.files.length > 0) {
+            input.style.color = "#10b981";
+        } else {
+            input.style.color = "initial";
+        }
+    }
+
+    /**
+     * Procesa la secuencia de audios ordenados y los guarda en base de datos
+     */
+    async processAudioSequence() {
+        const inputs = document.querySelectorAll('.audio-sequence-input');
+        const files = [];
+        
+        inputs.forEach(input => {
+            if (input.files.length > 0) {
+                files.push(input.files[0]);
+            }
+        });
+        
+        if (files.length === 0) {
+            alert("Por favor, selecciona al menos un archivo de audio en los espacios creados.");
+            return;
+        }
         
         const statusEl = document.getElementById('audio-file-status');
-        if (statusEl) statusEl.innerText = `Procesando ${files.length} grabación(es)... (Este proceso puede tardar unos segundos)`;
+        const btnProcess = document.getElementById('btn-process-sequence');
+        if (btnProcess) {
+            btnProcess.disabled = true;
+            btnProcess.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+        }
+        
+        if (statusEl) statusEl.innerText = `Iniciando guardado de ${files.length} audio(s) en orden estricto...`;
         
         try {
-            if (statusEl) statusEl.innerText = `Iniciando guardado en base de datos local...`;
-            
             const tipoSelect = document.getElementById('reunion-tipo');
             const motivoInput = document.getElementById('reunion-motivo');
             
@@ -622,9 +694,9 @@ class ReunionesModule {
                 activeAgendaItems.push({ ...point, id: pointId });
             }
             
-            // 3. Guardar TODOS los segmentos de audio
+            // 3. Guardar TODOS los segmentos de audio respetando el orden
             for (let i = 0; i < files.length; i++) {
-                if (statusEl) statusEl.innerText = `Procesando grabación ${i+1} de ${files.length}...`;
+                if (statusEl) statusEl.innerText = `Procesando y guardando audio ${i+1} de ${files.length}... (Puede tardar unos segundos)`;
                 const file = files[i];
                 
                 const base64Audio = await new Promise((resolve, reject) => {
@@ -637,7 +709,7 @@ class ReunionesModule {
                 const segmentoData = {
                     reunionId: reunionId,
                     ordenDiaId: null,
-                    ordenDiaTitulo: files.length > 1 ? `Grabación Externa (Parte ${i+1})` : 'Grabación Completa',
+                    ordenDiaTitulo: files.length > 1 ? `Grabación Externa (Fragmento ${i+1})` : 'Grabación Completa',
                     audioData: base64Audio,
                     duracionSecs: 0
                 };
@@ -663,28 +735,30 @@ class ReunionesModule {
             };
             const actaId = await localDB.add('actas', nuevaActa);
             
-            if (statusEl) statusEl.innerText = `¡Grabación importada con éxito! Redirigiendo...`;
-            alert('Grabación importada exitosamente. Se ha creado el borrador del acta.');
+            if (statusEl) statusEl.innerHTML = `<span style="color:#10b981;"><i class="fa-solid fa-circle-check"></i> ¡Grabación importada con éxito! Redirigiendo...</span>`;
             
-            // Limpiar variables de preparación
+            // Limpiar UI
             this.draftAgenda = [];
             this.renderDraftAgenda();
-            if (statusEl) statusEl.innerText = '';
-            event.target.value = '';
+            document.getElementById('audio-slots-list').innerHTML = ''; // Limpiar slots
+            this.addAudioSlot(); // Dejar uno limpio
             
-            // Abrir y cargar el acta recién generada en la pestaña Historial
+            // Abrir y cargar el acta recién generada
             if (window.historialModule) {
                 await window.historialModule.loadHistorial();
                 window.historialModule.viewActa(actaId, reunionId);
             } else {
                 app.navigate('view-historial');
             }
-            
         } catch (error) {
-            console.error("Error importando grabación externa:", error);
-            alert("No se pudo importar la grabación: " + (error.message || error));
-            if (statusEl) statusEl.innerText = 'Error al importar grabación.';
-            event.target.value = '';
+            console.error("Error en processAudioSequence:", error);
+            if (statusEl) statusEl.innerHTML = `<span style="color:#ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}</span>`;
+            alert("Error al procesar la grabación externa.");
+        } finally {
+            if (btnProcess) {
+                btnProcess.disabled = false;
+                btnProcess.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Procesar Audios Ordenados';
+            }
         }
     }
 
@@ -751,5 +825,6 @@ let reunionesModule;
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         reunionesModule = new ReunionesModule();
+        reunionesModule.addAudioSlot();
     }, 500);
 });
