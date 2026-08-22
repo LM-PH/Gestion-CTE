@@ -344,7 +344,11 @@ app.post('/api/procesar-audio', async (req, res) => {
                         displayName: `Audio CTE ${reunionId} - Parte ${i}`
                     });
                     
-                    fs.unlinkSync(tempFilePath); // Borrar temporal una vez subido
+                    try {
+                        if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); // Borrar temporal de forma segura
+                    } catch (e) {
+                        console.warn(`[IA] Aviso: no se pudo borrar tempFilePath: ${e.message}`);
+                    }
                     
                     console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
                     
@@ -366,9 +370,6 @@ app.post('/api/procesar-audio', async (req, res) => {
                             mimeType: uploadResponse.file.mimeType
                         }
                     });
-
-                    // Limpiar archivo temporal de disco local
-                    fs.unlinkSync(tempFilePath);
                 }
 
                 if (uploadedFiles.length === 0) {
