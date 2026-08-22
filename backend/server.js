@@ -299,23 +299,30 @@ app.post('/api/procesar-audio', async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
-                const prompt = `Actúa como secretario de una reunión escolar de Consejo Técnico Escolar (CTE).
-                Analiza con atención el contenido de los audios proporcionados (que corresponden a grabaciones en vivo o audios externos subidos de la sesión). 
-                Genera un acta estructurada en formato JSON estricto con los siguientes campos:
-                
-                {
-                  "temas": ["Lista detallada de temas tratados en la reunión"],
-                  "resumenGeneral": "Una relatoría narrativa muy detallada e hilada de los hechos ocurridos en la sesión en español. Debe describir a profundidad lo discutido, mencionando qué participante intervino, qué propuestas hicieron y cómo se desarrolló la discusión punto por punto de la orden del día. El texto debe ser formal, explicativo y servir como testimonio completo de la reunión escolar.",
-                  "acuerdos": [
-                    {
-                      "texto": "Detalle claro y completo del acuerdo, compromiso o tarea asignada",
-                      "responsable": "Nombre del participante, equipo o grupo responsable (ej. Director, Todo el colectivo, Profesor Juan)",
-                      "fecha": "Plazo límite de cumplimiento (ej. Próxima sesión, fecha exacta DD/MM/AAAA, o 'Pendiente')"
-                    }
-                  ]
-                }
-                
-                Asegúrate de extraer TODOS los compromisos, tareas y acuerdos que se hayan pactado. Si no se tomaron acuerdos en absoluto, deja la lista de acuerdos vacía. No inventes información que no esté en los audios.`;
+                const prompt = `Actúa como un Secretario Técnico Oficial y riguroso de una sesión de Consejo Técnico Escolar (CTE) en México.
+Tu tarea es analizar exhaustivamente la transcripción o el audio de la sesión y generar el contenido para un Acta Oficial.
+
+REGLAS ESTRICTAS E IRROMPIBLES:
+1. TODO el contenido generado (absolutamente todo) debe estar estrictamente en ESPAÑOL (variante de México). Queda estrictamente prohibido usar inglés o traducir conceptos.
+2. El tono debe ser INSTITUCIONAL, FORMAL y OBJETIVO. No uses lenguaje emocional, romántico ni narrativo (evita frases como "ejemplo inspirador" o "transitando rápidamente").
+3. Limítate a relatar los hechos concretos, quién tomó la palabra, qué se discutió, y a qué conclusión se llegó.
+4. No inventes nombres, datos ni acuerdos que no se escuchen claramente en el audio.
+
+Genera una respuesta en formato JSON estricto con la siguiente estructura:
+
+{
+  "temas": ["Lista detallada y formal de los puntos o temas tratados en la reunión (en español)."],
+  "resumenGeneral": "Redacta la Relatoría oficial de la sesión. Estructúrala de manera cronológica o por puntos tratados. Menciona las intervenciones clave de los participantes (ej. 'El director expuso...', 'El colectivo docente acordó...', 'El profesor Juan señaló...'). Debe ser un texto cohesionado, formal y que sirva como evidencia institucional y legal de lo ocurrido en la junta.",
+  "acuerdos": [
+    {
+      "texto": "Redacción formal, clara y precisa de la acción a realizar, compromiso o tarea asignada.",
+      "responsable": "Nombre de la persona, cargo o grupo específico responsable de cumplirlo.",
+      "fecha": "Fecha exacta, periodo (ej. 'Durante el ciclo escolar') o 'Próxima sesión'. Si no se especificó, pon 'Pendiente'."
+    }
+  ]
+}
+
+Si en el audio no se llega a ningún acuerdo formal, deja el arreglo de "acuerdos" completamente vacío ([]). Tu prioridad es la precisión institucional.`;
 
                 // Ejecutar generación con la API nativa y URIs
                 const result = await model.generateContent([prompt, ...uploadedFiles]);
