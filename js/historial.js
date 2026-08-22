@@ -245,9 +245,21 @@ class HistorialModule {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                const fullError = errorData.details ? `${errorData.error} (${errorData.details})` : errorData.error;
-                throw new Error(fullError || "Fallo en la comunicación con IA");
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const errorData = await response.json();
+                    const fullError = errorData.details ? `${errorData.error} (${errorData.details})` : errorData.error;
+                    throw new Error(fullError || "Fallo en la comunicación con IA");
+                } else {
+                    const textError = await response.text();
+                    console.error("HTML Error de servidor:", textError.substring(0, 300));
+                    if (response.status === 413) {
+                         throw new Error("El audio es demasiado pesado para el servidor (Error 413).");
+                    } else if (response.status === 504 || response.status === 502) {
+                         throw new Error("El servidor tardó demasiado o se está reiniciando. Intenta de nuevo en unos segundos.");
+                    }
+                    throw new Error(`Error del servidor (${response.status}): Posiblemente el audio sea muy grande o el sistema esté saturado.`);
+                }
             }
 
             const { data } = await response.json();
