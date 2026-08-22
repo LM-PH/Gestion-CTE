@@ -493,16 +493,24 @@ class ReunionesModule {
             return /^(\d+[\.\)\-]|[\-\*•])\s+/.test(c) && c.length > 5 && c.length < 150;
         }).map(l => l.trim().replace(/^(\d+[\.\)\-]|[\-\*•])\s*/, ''));
         
+        // Fallback Extremo: Si no hay formato de lista en absoluto, tomamos el texto bruto (hasta 2500 caracteres)
+        if (items.length === 0) {
+            const rawTextContext = text.replace(/\s+/g, ' ').trim().substring(0, 2500);
+            if (rawTextContext.length > 50) {
+                items.push("Documento Oficial (Propósitos y Agenda): " + rawTextContext);
+            }
+        }
+        
         if (items.length > 0) {
-            if (confirm(`Se encontraron ${items.length} puntos en el documento. ¿Deseas agregarlos al Orden del Día?`)) {
+            if (confirm(`Se encontraron ${items.length} punto(s) o bloques de texto en el documento. ¿Deseas agregarlos al Orden del Día?`)) {
                 this.draftAgenda = this.draftAgenda.concat(items);
                 this.renderDraftAgenda();
                 
                 const statusEl = document.getElementById('agenda-file-status');
-                if (statusEl) statusEl.innerText = `¡Cargados ${items.length} puntos con éxito!`;
+                if (statusEl) statusEl.innerText = `¡Agenda procesada con éxito!`;
             }
         } else {
-            alert("No se pudo extraer ningún punto claro de orden del día del archivo.");
+            alert("El documento parece estar vacío o su texto no se pudo extraer. Intenta copiar y pegar la agenda manualmente.");
         }
     }
 
