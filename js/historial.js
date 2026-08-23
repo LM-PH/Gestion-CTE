@@ -362,7 +362,7 @@ class HistorialModule {
                 
                 if (!pollRes.ok) {
                     if (pollRes.status === 404) {
-                        throw new Error("El servidor se reinició o perdió la tarea. Por favor, vuelve a dar clic en Autocompletar con IA.");
+                        throw new Error("El servidor se reinició o perdió la tarea. Por favor, vuelve a dar clic en Redactar con IA.");
                     }
                     console.warn("El servidor respondió con error temporal (ej. 502/504), reintentando...");
                     continue;
