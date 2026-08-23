@@ -49,6 +49,7 @@
             <li><a href="#" data-target="view-docentes" class="nav-link"><i class="fa-solid fa-users"></i> Participantes</a></li>
             <li><a href="#" data-target="view-reunion" class="nav-link"><i class="fa-solid fa-calendar-plus"></i> Nueva Reunión</a></li>
             <li><a href="#" data-target="view-historial" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Historial</a></li>
+            <li><a href="#" data-target="view-privacidad" class="nav-link"><i class="fa-solid fa-file-shield"></i> Privacidad</a></li>
             <li id="nav-link-admin" style="display: none;"><a href="#" data-target="view-admin" class="nav-link"><i class="fa-solid fa-shield-halved"></i> Panel Admin</a></li>
         </ul>
         <div style="margin-top: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
@@ -130,6 +131,35 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </section>
+
+        <!-- View: Privacidad y Créditos -->
+        <section id="view-privacidad" class="view">
+            <div class="view-header">
+                <h2>Aviso de Privacidad y Uso de Créditos</h2>
+            </div>
+            <div class="card" style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--primary);"><i class="fa-solid fa-coins"></i> ¿Cómo funcionan los créditos?</h3>
+                <p style="margin-bottom: 1rem;">La redacción automatizada de las actas utiliza modelos avanzados de Inteligencia Artificial (Google Gemini). El procesamiento de este volumen de texto y audio tiene un costo asociado.</p>
+                <p style="margin-bottom: 1rem;">Por ello, el sistema funciona mediante "Créditos":</p>
+                <ul style="margin-bottom: 1rem; margin-left: 2rem; color: var(--text-muted);">
+                    <li><strong>1 Acta Generada por IA = 1 Crédito = $50.00 MXN.</strong></li>
+                    <li>El crédito se descuenta <strong>única y exclusivamente</strong> en el momento en que haces clic en el botón <em>"Redactar Acta con IA"</em> y confirmas la acción.</li>
+                    <li>Si no tienes créditos suficientes, el sistema no te permitirá procesar el acta y te solicitará realizar una recarga a través de Mercado Pago.</li>
+                </ul>
+                <p style="font-weight: 500;">Una vez que adquieras tus créditos y el pago sea procesado, se añadirán automáticamente a tu cuenta y podrás generar tus actas al instante.</p>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 1rem; color: var(--primary);"><i class="fa-solid fa-user-shield"></i> Aviso de Privacidad</h3>
+                <p style="margin-bottom: 1rem;">En <strong>CTE Inteligente</strong> estamos comprometidos con la seguridad y privacidad de tus datos, especialmente dada la sensibilidad de la información manejada en los Consejos Técnicos Escolares.</p>
+                <ol style="margin-bottom: 1rem; margin-left: 2rem; color: var(--text-muted); line-height: 1.8;">
+                    <li><strong>Cuentas Personales:</strong> Toda tu información (docentes registrados, audios y actas) está estrictamente vinculada a tu cuenta de Google. Ningún otro usuario de la plataforma puede acceder a tus documentos.</li>
+                    <li><strong>Uso de Audios:</strong> Los audios grabados durante tus reuniones se almacenan de manera segura y se envían a la Inteligencia Artificial exclusivamente para su transcripción y análisis para la redacción del acta. <strong>No son compartidos con terceros</strong> ni utilizados para fines comerciales.</li>
+                    <li><strong>Inicio de Sesión Seguro:</strong> Utilizamos Google Identity Services. CTE Inteligente no tiene acceso a tu contraseña de Google, únicamente recibimos tu correo electrónico y nombre público para validar tu identidad.</li>
+                    <li><strong>Pagos Seguros:</strong> Todos los procesos de cobro y facturación de créditos son gestionados directamente por la pasarela de <strong>Mercado Pago</strong>. Nosotros no almacenamos ni tenemos acceso a los datos de tu tarjeta bancaria.</li>
+                </ol>
             </div>
         </section>
 

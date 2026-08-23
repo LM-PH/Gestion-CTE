@@ -229,6 +229,9 @@ class HistorialModule {
         const reunionId = parseInt(this.actaIdInput.dataset.reunionId);
         if (!reunionId) return;
 
+        const confirmacion = confirm("Al utilizar la inteligencia artificial para redactar esta acta se descontará 1 crédito de tu cuenta. ¿Aceptas continuar?");
+        if (!confirmacion) return;
+
         const originalText = this.btnIaMagic.innerHTML;
         this.btnIaMagic.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando Audio...';
         this.btnIaMagic.disabled = true;
