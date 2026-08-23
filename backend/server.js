@@ -489,9 +489,10 @@ app.post('/api/procesar-audio', async (req, res) => {
 Genera el acta de la sesión analizando los audios adjuntos.
 
 INSTRUCCIONES CLAVES:
-1. ENSAYO NARRATIVO POR PARTES: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. **OBLIGATORIAMENTE debes estructurar la relatoría haciendo un salto o brinco por cada archivo de audio**. Por ejemplo, inicia relatando el primer audio; luego pon un salto de línea y escribe "En la segunda parte de la reunión..." (o tercera parte) correspondientes al Audio 2, Audio 3, etc. Si solo hay un audio, haz una relatoría unificada.
-2. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias (ej. cambios de presupuesto, resoluciones oficiales). Ignora la planeación de clases normal.
-3. IDENTIFICACIÓN: Usa nombres genéricos ("Un docente", "El director") si no se menciona un nombre claro.
+1. ENSAYO NARRATIVO EXHAUSTIVO: Escribe la relatoría narrando todo el evento en formato de ensayo tradicional. **OBLIGATORIAMENTE debes estructurar la relatoría haciendo un salto o brinco por cada archivo de audio**.
+2. PROFUNDIDAD OBLIGATORIA: Tienes PROHIBIDO hacer resúmenes breves. Debes escribir un MÍNIMO de 3 a 5 párrafos largos y detallados POR CADA AUDIO. Si el Audio 1 dura mucho, desglosa paso a paso todo lo que se habló antes de pasar a la segunda parte.
+3. PROHIBIDO ASUMIR CARGOS (MUY IMPORTANTE): NO asumas que quien dirige la sesión es "la directora" o "el director". Si no dicen explícitamente su cargo en el audio, llámale "La persona que coordina", "Un participante" o "Quien dirige la sesión".
+4. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias.
 `;
 
                 const geminiPayload = [prompt];
