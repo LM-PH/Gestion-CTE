@@ -316,7 +316,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                             fecha: { type: SchemaType.STRING }
                                         }
                                     },
-                                    description: "Filtro extremo: EXTRAE SOLO UN MÁXIMO DE 5 ACUERDOS OFICIALES MÁS IMPORTANTES. Si dudas, no lo pongas."
+                                    description: "Filtro extremo: EXTRAE SOLO UN MÁXIMO DE 10 ACUERDOS OFICIALES MÁS IMPORTANTES. Si dudas, no lo pongas."
                                 }
                             },
                             required: ["temas", "resumenGeneral", "acuerdos"]
@@ -491,7 +491,7 @@ Tu tarea principal e inquebrantable es analizar TODOS LOS AUDIOS adjuntos y gene
 REGLAS DE ORO:
 1. AUDIO ES LA ÚNICA VERDAD: Redacta la relatoría (resumenGeneral) narrando EXCLUSIVAMENTE lo que se habló en los audios. Si algo venía en la agenda pero no se habló, NO LO INVENTES.
 2. NOMBRES GENERALES: Si no estás seguro de quién habló, usa términos genéricos como "Un docente", "El colectivo", "Un participante". Solo usa nombres propios si se dicen claramente en el audio.
-3. ACUERDOS EXTRAORDINARIOS Y FORMALES: Sé extremadamente avaro. Máximo absoluto de 5 acuerdos. Si tienes la más mínima duda de si es un acuerdo o solo una charla, descártalo. EXCLUYE actividades escolares rutinarias.
+3. ACUERDOS EXTRAORDINARIOS Y FORMALES: Sé extremadamente avaro. Máximo absoluto de 10 acuerdos. Si tienes la más mínima duda de si es un acuerdo o solo una charla, descártalo. EXCLUYE actividades escolares rutinarias.
 4. EXTENSIÓN Y PÁRRAFOS: La relatoría debe ser profunda. Separa la información en PÁRRAFOS cortos usando dobles saltos de línea (\\n\\n) para que no sea un bloque pegado de texto. Integra todos los audios.
 `;
 
