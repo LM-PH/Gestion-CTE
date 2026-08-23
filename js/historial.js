@@ -382,6 +382,8 @@ class HistorialModule {
                 this.actaResumenInput.value = data.resumenGeneral;
             }
             if (data.acuerdos && data.acuerdos.length > 0) {
+                // Limpiar acuerdos anteriores para no acumularlos si se corre la IA varias veces
+                this.currentAcuerdos = [];
                 data.acuerdos.forEach(ac => {
                     this.currentAcuerdos.push({
                         id: Date.now() + Math.random(),
