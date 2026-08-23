@@ -501,7 +501,7 @@ INSTRUCCIONES CLAVES:
 - Tienes PROHIBIDO hacer resúmenes breves. Calcula mentalmente la duración de cada audio y escribe OBLIGATORIAMENTE un mínimo de 2 párrafos largos POR CADA 20 MINUTOS. Ejemplo: Si el Audio 1 dura 1 hora, DEBES escribir al menos 6 párrafos exclusivos para ese audio.
 - LÍMITE MÁXIMO: Para evitar desbordamiento de memoria, tu relatoría total (sumando todos los audios) no debe exceder las 2,500 palabras. Sé profundo pero muy conciso.
 - TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado lo sucedido en el AUDIO ${uploadedFiles.length}.
-3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias.
+3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
 
