@@ -304,7 +304,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                 },
                                 resumenGeneral: {
                                     type: SchemaType.STRING,
-                                    description: "Relatoría oficial extensa y detallada. Escribe EXCLUSIVAMENTE en texto narrativo normal. Usa dobles saltos de línea (\\n\\n) obligatoriamente para separar los párrafos de forma clara. TIENES PROHIBIDO usar formato JSON, llaves o corchetes dentro de este campo."
+                                    description: "Relatoría oficial. Redacta un ensayo narrativo fluido usando dobles saltos de línea para separar párrafos. Usa solo texto puro sin símbolos técnicos."
                                 },
                                 acuerdos: {
                                     type: SchemaType.ARRAY,
@@ -316,7 +316,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                             fecha: { type: SchemaType.STRING }
                                         }
                                     },
-                                    description: "Filtro extremo: EXTRAE SOLO UN MÁXIMO DE 10 ACUERDOS OFICIALES MÁS IMPORTANTES. Si dudas, no lo pongas."
+                                    description: "Solo decisiones institucionales mayores. MÁXIMO 10 ELEMENTOS."
                                 }
                             },
                             required: ["temas", "resumenGeneral", "acuerdos"]
@@ -485,30 +485,14 @@ app.post('/api/procesar-audio', async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
-                let prompt = `Actúa como un Secretario Técnico Oficial de una sesión de Consejo Técnico Escolar (CTE).
-Tu tarea principal e inquebrantable es analizar TODOS LOS AUDIOS adjuntos y generar el acta BASÁNDOTE 100% EN LO QUE ESCUCHAS, ignorando documentos externos.
+                let prompt = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
+Genera el acta de la sesión analizando los audios adjuntos.
 
-REGLAS DE ORO:
-1. AUDIO ES LA ÚNICA VERDAD: Redacta la relatoría (resumenGeneral) narrando EXCLUSIVAMENTE lo que se habló en los audios. Si algo venía en la agenda pero no se habló, NO LO INVENTES.
-2. NOMBRES GENERALES: Si no estás seguro de quién habló, usa términos genéricos como "Un docente", "El colectivo", "Un participante". Solo usa nombres propios si se dicen claramente en el audio.
-3. ACUERDOS EXTRAORDINARIOS Y FORMALES: Sé extremadamente avaro. Máximo absoluto de 10 acuerdos. Si tienes la más mínima duda de si es un acuerdo o solo una charla, descártalo. EXCLUYE actividades escolares rutinarias.
-4. EXTENSIÓN Y PÁRRAFOS: La relatoría debe ser profunda. Separa la información en PÁRRAFOS cortos usando dobles saltos de línea (\\n\\n) para que no sea un bloque pegado de texto. Integra todos los audios.
+INSTRUCCIONES CLAVES:
+1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. Menciona "Audio 1", "Audio 2", etc. si quieres referirte a ellos, pero usa lenguaje natural.
+2. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias (ej. cambios de presupuesto, resoluciones oficiales). Ignora la planeación de clases normal.
+3. IDENTIFICACIÓN: Usa nombres genéricos ("Un docente", "El director") si no se menciona un nombre claro.
 `;
-
-                if (agenda && agenda.trim() !== '') {
-                    prompt += `
-5. AGENDA (SOLO REFERENCIA ESTRUCTURAL):
-Se te proporciona la Orden del Día original. Tu misión es extraer los puntos de esta agenda tal cual están escritos para rellenar el campo "temas" del JSON. 
-Para la relatoría, usa la agenda solo para saber el orden de los temas, pero RECUERDA: relata SOLO lo que escuches en el audio.
---- AGENDA ---
-${agenda}
---------------
-`;
-                } else {
-                    prompt += `
-5. TEMAS TRATADOS: Como no hay agenda previa, extrae del audio los temas principales y colócalos en el campo "temas".
-`;
-                }
 
                 const geminiPayload = [prompt];
                 for (let j = 0; j < uploadedFiles.length; j++) {
