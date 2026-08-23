@@ -293,8 +293,10 @@ app.post('/api/procesar-audio', async (req, res) => {
 
                 audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos y procesando con IA...' });
                 
+                // Inicializar Gemini Pro para análisis profundo
+                const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
                 const model = genAI.getGenerativeModel({ 
-                    model: "gemini-2.5-flash",
+                    model: "gemini-1.5-pro",
                     generationConfig: { 
                         responseMimeType: "application/json",
                         maxOutputTokens: 8192,
@@ -519,6 +521,9 @@ INSTRUCCIONES CLAVES:
                 let iaData;
                 try {
                     iaData = JSON.parse(text);
+                    if (iaData.acuerdos && Array.isArray(iaData.acuerdos)) {
+                        iaData.acuerdos = iaData.acuerdos.slice(0, 10);
+                    }
                 } catch (e) {
                     console.warn(`[IA] Error parseando JSON en tarea ${taskId}, intentando rescate manual por corte de tokens.`);
                     
