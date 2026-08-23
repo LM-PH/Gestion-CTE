@@ -296,7 +296,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                 // Inicializar Gemini Pro para análisis profundo
                 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
                 const model = genAI.getGenerativeModel({ 
-                    model: "gemini-1.5-pro",
+                    model: "gemini-2.5-pro",
                     generationConfig: { 
                         responseMimeType: "application/json",
                         maxOutputTokens: 8192,
