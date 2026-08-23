@@ -215,9 +215,13 @@ app.post('/api/analizar-pdf', async (req, res) => {
                             type: SchemaType.STRING,
                             description: "Propósitos u objetivos generales mencionados en el texto. Resume si es muy largo."
                         },
+                        sede: {
+                            type: SchemaType.STRING,
+                            description: "Nombre exclusivo del Plantel o Sede donde se realiza la reunión. Si no se menciona, devuelve cadena vacía."
+                        },
                         organizacion: {
                             type: SchemaType.STRING,
-                            description: "Extrae la fecha, lugar, sede y/o modalidad. Si no se mencionan, devuelve 'No especificado'."
+                            description: "Extrae la fecha, modalidad u otros datos de organización."
                         },
                         temas: {
                             type: SchemaType.ARRAY,
@@ -486,13 +490,13 @@ app.post('/api/procesar-audio', async (req, res) => {
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
                 let prompt = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
-Genera el acta de la sesión analizando los audios adjuntos.
+Genera el acta de la sesión analizando los audios adjuntos. Te he adjuntado exactamente ${uploadedFiles.length} archivo(s) de audio.
 
 INSTRUCCIONES CLAVES:
-1. ENSAYO NARRATIVO EXHAUSTIVO: Escribe la relatoría narrando todo el evento en formato de ensayo tradicional. **OBLIGATORIAMENTE debes estructurar la relatoría haciendo un salto o brinco por cada archivo de audio**.
-2. PROFUNDIDAD OBLIGATORIA: Tienes PROHIBIDO hacer resúmenes breves. Debes escribir un MÍNIMO de 3 a 5 párrafos largos y detallados POR CADA AUDIO. Si el Audio 1 dura mucho, desglosa paso a paso todo lo que se habló antes de pasar a la segunda parte.
-3. PROHIBIDO ASUMIR CARGOS (MUY IMPORTANTE): NO asumas que quien dirige la sesión es "la directora" o "el director". Si no dicen explícitamente su cargo en el audio, llámale "La persona que coordina", "Un participante" o "Quien dirige la sesión".
-4. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias.
+1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
+2. ESTRUCTURA FORZADA: OBLIGATORIAMENTE debes estructurar la relatoría haciendo un salto o brinco por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado lo sucedido en el AUDIO ${uploadedFiles.length}.
+3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias.
+4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
 
                 const geminiPayload = [prompt];

@@ -498,6 +498,9 @@ class ReunionesModule {
                     propositos: data.propositos || "No detectados",
                     organizacion: data.organizacion || "No detectada"
                 };
+                if (data.sede && data.sede.trim() !== '') {
+                    this.extractedDetails.escuela = data.sede;
+                }
                 
                 // 4. Mostrar panel informativo en la interfaz
                 if (statusEl) {
