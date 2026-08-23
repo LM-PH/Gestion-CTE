@@ -496,11 +496,11 @@ Genera el acta de la sesión analizando los audios adjuntos. Te he adjuntado exa
 
 INSTRUCCIONES CLAVES:
 1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
-2. ESTRUCTURA FORZADA Y EXTENSIÓN MATEMÁTICA: 
+2. ESTRUCTURA FORZADA Y EXTENSIÓN MONUMENTAL: 
 - Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
-- Tienes PROHIBIDO hacer resúmenes breves. Calcula mentalmente la duración de cada audio y escribe OBLIGATORIAMENTE un mínimo de 2 párrafos largos POR CADA 20 MINUTOS. Ejemplo: Si el Audio 1 dura 1 hora, DEBES escribir al menos 6 párrafos exclusivos para ese audio.
-- LÍMITE MÁXIMO: Para evitar desbordamiento de memoria, tu relatoría total (sumando todos los audios) no debe exceder las 2,500 palabras. Sé profundo pero muy conciso.
-- TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado lo sucedido en el AUDIO ${uploadedFiles.length}.
+- Estas grabaciones son largas (casi 2 horas cada una). Tienes PROHIBIDO hacer resúmenes breves. DEBES escribir OBLIGATORIAMENTE un mínimo de 10 a 12 párrafos densos y detallados EXCLUSIVOS para CADA AUDIO.
+- LÍMITE MÁXIMO: Para evitar desbordamiento de memoria, tu relatoría total (sumando todos los audios) no debe exceder las 3,000 palabras. Sé profundo pero no repitas información.
+- TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado exhaustivamente lo sucedido en el ÚLTIMO AUDIO.
 3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
