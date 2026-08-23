@@ -497,6 +497,7 @@ INSTRUCCIONES CLAVES:
 2. ESTRUCTURA FORZADA Y EXTENSIÓN MATEMÁTICA: 
 - Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
 - Tienes PROHIBIDO hacer resúmenes breves. Calcula mentalmente la duración de cada audio y escribe OBLIGATORIAMENTE un mínimo de 2 párrafos largos POR CADA 20 MINUTOS. Ejemplo: Si el Audio 1 dura 1 hora, DEBES escribir al menos 6 párrafos exclusivos para ese audio.
+- LÍMITE MÁXIMO: Para evitar desbordamiento de memoria, tu relatoría total (sumando todos los audios) no debe exceder las 2,500 palabras. Sé profundo pero muy conciso.
 - TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado lo sucedido en el AUDIO ${uploadedFiles.length}.
 3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
@@ -511,8 +512,7 @@ INSTRUCCIONES CLAVES:
 
                 // Ejecutar generación con la API nativa y URIs bien etiquetadas
                 const result = await model.generateContent(geminiPayload);
-                const response = await result.response;
-                const text = response.text();
+                const text = result.response.text();
 
                 console.log(`[IA] Tarea ${taskId} finalizada. Gemini respondió.`);
                 
@@ -520,8 +520,23 @@ INSTRUCCIONES CLAVES:
                 try {
                     iaData = JSON.parse(text);
                 } catch (e) {
-                    console.warn(`[IA] Error parseando JSON en tarea ${taskId}, enviando texto plano.`);
-                    iaData = { temas: ["Resumen"], resumenGeneral: text, acuerdos: [] };
+                    console.warn(`[IA] Error parseando JSON en tarea ${taskId}, intentando rescate manual por corte de tokens.`);
+                    
+                    let resumen = "";
+                    const resMatch = text.match(/"resumenGeneral"\s*:\s*"([\s\S]*?)",?\s*("acuerdos"|})/);
+                    if (resMatch) {
+                        resumen = resMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                    } else {
+                        const resMatch2 = text.match(/"resumenGeneral"\s*:\s*"([\s\S]*)/);
+                        if (resMatch2) {
+                            resumen = resMatch2[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+                            resumen = resumen.replace(/["}\]]*$/, '');
+                        } else {
+                            resumen = text;
+                        }
+                    }
+                    
+                    iaData = { temas: [], resumenGeneral: resumen + "\n\n[NOTA: La relatoría se truncó porque alcanzó el límite máximo de extensión de la IA.]", acuerdos: [] };
                 }
 
                 // Actualizar tarea en memoria como finalizada
