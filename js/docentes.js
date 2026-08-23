@@ -59,7 +59,10 @@ class DocentesModule {
                 if (navigator.onLine && mongoId) {
                     await fetch(`${this.apiUrl}/${mongoId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                        },
                         body: JSON.stringify(docenteData)
                     });
                 }
@@ -71,7 +74,10 @@ class DocentesModule {
                 if (navigator.onLine) {
                     const response = await fetch(this.apiUrl, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                        },
                         body: JSON.stringify(docenteData)
                     });
                     const savedInMongo = await response.json();
@@ -106,7 +112,10 @@ class DocentesModule {
 
             // Eliminar en la nube
             if (navigator.onLine && mongoId) {
-                await fetch(`${this.apiUrl}/${mongoId}`, { method: 'DELETE' });
+                await fetch(`${this.apiUrl}/${mongoId}`, { 
+                    method: 'DELETE',
+                    headers: { ...(window.authModule ? window.authModule.getAuthHeaders() : {}) }
+                });
             }
             
             this.loadDocentes();
@@ -142,7 +151,9 @@ class DocentesModule {
         if (!navigator.onLine) return;
 
         try {
-            const response = await fetch(this.apiUrl);
+            const response = await fetch(this.apiUrl, {
+                headers: { ...(window.authModule ? window.authModule.getAuthHeaders() : {}) }
+            });
             if (!response.ok) return;
             const cloudDocentes = await response.json();
             

@@ -2,8 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const dotenv = require('dotenv');
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
+const { MercadoPagoConfig, Preference } = require('mercadopago');
 
 dotenv.config();
+
+// Configuración Auth y Pagos
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const JWT_SECRET = process.env.JWT_SECRET || 'secret_para_desarrollo_local';
+const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN || 'TEST-123' });
 
 const app = express();
 app.use(cors());
@@ -25,14 +33,155 @@ MongoClient.connect(mongoUri)
     })
     .catch(err => console.error("Error conectando a MongoDB:", err));
 
+// Middleware de Autenticación
+const authMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'No autorizado' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (e) {
+        res.status(401).json({ error: 'Token inválido' });
+    }
+};
+
+// ==========================================
+// ENDPOINTS AUTH
+// ==========================================
+app.post('/api/auth/google', async (req, res) => {
+    try {
+        const { token } = req.body;
+        const ticket = await googleClient.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        
+        let user = await db.collection('users').findOne({ email: payload.email });
+        if (!user) {
+            const newUser = {
+                email: payload.email,
+                name: payload.name,
+                picture: payload.picture,
+                credits: 0, // Inicia con 0 créditos
+                role: 'user',
+                createdAt: new Date()
+            };
+            const result = await db.collection('users').insertOne(newUser);
+            user = { _id: result.insertedId, ...newUser };
+        }
+        
+        const jwtToken = jwt.sign(
+            { id: user._id.toString(), email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+        
+        res.json({ success: true, token: jwtToken, user: { name: user.name, email: user.email, picture: user.picture, credits: user.credits, role: user.role } });
+    } catch (error) {
+        console.error('Error en auth google:', error);
+        res.status(401).json({ error: 'Autenticación fallida' });
+    }
+});
+
+app.post('/api/auth/admin', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (email === 'zlagustin10@gmail.com' && password === 'arrevale321') {
+            const jwtToken = jwt.sign(
+                { id: 'admin', email: email, role: 'admin' },
+                JWT_SECRET,
+                { expiresIn: '1d' }
+            );
+            res.json({ success: true, token: jwtToken, user: { name: 'Admin', email: email, role: 'admin' } });
+        } else {
+            res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Error interno' });
+    }
+});
+
+app.get('/api/admin/users', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Prohibido' });
+    try {
+        const users = await db.collection('users').find().toArray();
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ error: 'Error obteniendo usuarios' });
+    }
+});
+
+app.post('/api/auth/me', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            return res.json({ name: 'Admin', email: req.user.email, role: 'admin' });
+        }
+        const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+        if (!user) return res.status(404).json({ error: 'No encontrado' });
+        res.json({ name: user.name, email: user.email, picture: user.picture, credits: user.credits, role: user.role });
+    } catch (e) {
+        res.status(500).json({ error: 'Error' });
+    }
+});
+
+// ==========================================
+// ENDPOINTS PAGOS (MERCADO PAGO)
+// ==========================================
+app.post('/api/payments/create-preference', authMiddleware, async (req, res) => {
+    try {
+        const preference = new Preference(mpClient);
+        const result = await preference.create({
+            body: {
+                items: [
+                    {
+                        title: '1 Crédito CTE Inteligente',
+                        quantity: 1,
+                        unit_price: 50.00,
+                        currency_id: 'MXN'
+                    }
+                ],
+                metadata: {
+                    user_id: req.user.id
+                }
+            }
+        });
+        res.json({ id: result.id, init_point: result.init_point });
+    } catch (error) {
+        console.error('Error creando preferencia MP:', error);
+        res.status(500).json({ error: 'Error al generar cobro' });
+    }
+});
+
+app.post('/api/payments/webhook', async (req, res) => {
+    try {
+        const payment = req.body;
+        console.log("Webhook MP Recibido:", JSON.stringify(payment));
+        res.status(200).send('OK');
+    } catch (error) {
+        console.error('Error en webhook MP:', error);
+        res.status(500).send('Error');
+    }
+});
+
+// Endpoint MOCK temporal para acreditar créditos (Solo para pruebas del cliente)
+app.post('/api/payments/mock-success', authMiddleware, async (req, res) => {
+    await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: 1 } });
+    res.json({ success: true, message: 'Crédito añadido exitosamente.' });
+});
+
 // ==========================================
 // ENDPOINTS DOCENTES
 // ==========================================
 
 // GET /docentes
-app.get('/api/docentes', async (req, res) => {
+app.get('/api/docentes', authMiddleware, async (req, res) => {
     try {
-        const docentes = await db.collection('docentes').find().toArray();
+        const docentes = await db.collection('docentes').find({ userId: req.user.id }).toArray();
         res.json(docentes);
     } catch (error) {
         console.error("Error GET /docentes:", error);
@@ -41,10 +190,11 @@ app.get('/api/docentes', async (req, res) => {
 });
 
 // POST /docentes
-app.post('/api/docentes', async (req, res) => {
+app.post('/api/docentes', authMiddleware, async (req, res) => {
     try {
         const docenteData = req.body;
         docenteData.createdAt = new Date();
+        docenteData.userId = req.user.id;
         
         // Si el docente trae ID local temporal (offline), lo guardamos como localId
         if (docenteData.id && typeof docenteData.id === 'number') {
@@ -63,7 +213,7 @@ app.post('/api/docentes', async (req, res) => {
 });
 
 // PUT /docentes/:id
-app.put('/api/docentes/:id', async (req, res) => {
+app.put('/api/docentes/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
         const updateData = { ...req.body };
@@ -72,7 +222,7 @@ app.put('/api/docentes/:id', async (req, res) => {
         updateData.updatedAt = new Date();
 
         await db.collection('docentes').updateOne(
-            { _id: new ObjectId(id) },
+            { _id: new ObjectId(id), userId: req.user.id },
             { $set: updateData }
         );
         res.json({ success: true, message: 'Docente actualizado' });
@@ -83,10 +233,10 @@ app.put('/api/docentes/:id', async (req, res) => {
 });
 
 // DELETE /docentes/:id
-app.delete('/api/docentes/:id', async (req, res) => {
+app.delete('/api/docentes/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
-        await db.collection('docentes').deleteOne({ _id: new ObjectId(id) });
+        await db.collection('docentes').deleteOne({ _id: new ObjectId(id), userId: req.user.id });
         res.json({ success: true, message: 'Docente eliminado' });
     } catch (error) {
         console.error("Error DELETE /docentes:", error);
@@ -97,12 +247,13 @@ app.delete('/api/docentes/:id', async (req, res) => {
 // ENDPOINTS SINCRONIZACIÓN (REUNIONES, SEGMENTOS, ACTAS)
 // ==========================================
 
-async function syncCollection(collectionName, payload) {
+async function syncCollection(collectionName, payload, userId) {
     const dataArray = Array.isArray(payload) ? payload : [payload];
     const results = [];
     
     for(let data of dataArray) {
         data.updatedAt = new Date();
+        data.userId = userId;
         const localId = data.id;
         if (data.id && typeof data.id === 'number') {
             data.localId = data.id;
@@ -113,12 +264,12 @@ async function syncCollection(collectionName, payload) {
         if (data._id) {
             const _id = new ObjectId(data._id);
             delete data._id;
-            await db.collection(collectionName).updateOne({ _id }, { $set: data }, { upsert: true });
+            await db.collection(collectionName).updateOne({ _id, userId }, { $set: data }, { upsert: true });
             mongoId = _id;
         } else if (data.localId) {
-            const result = await db.collection(collectionName).updateOne({ localId: data.localId }, { $set: data }, { upsert: true });
-            const doc = await db.collection(collectionName).findOne({ localId: data.localId });
-            mongoId = doc._id;
+            const result = await db.collection(collectionName).updateOne({ localId: data.localId, userId }, { $set: data }, { upsert: true });
+            const doc = await db.collection(collectionName).findOne({ localId: data.localId, userId });
+            mongoId = doc ? doc._id : null;
         } else {
             const result = await db.collection(collectionName).insertOne(data);
             mongoId = result.insertedId;
@@ -129,9 +280,9 @@ async function syncCollection(collectionName, payload) {
     return results;
 }
 
-app.post('/api/reuniones', async (req, res) => {
+app.post('/api/reuniones', authMiddleware, async (req, res) => {
     try {
-        const results = await syncCollection('reuniones', req.body);
+        const results = await syncCollection('reuniones', req.body, req.user.id);
         res.json({ success: true, synced: results });
     } catch (error) {
         console.error("Error POST /reuniones:", error);
@@ -139,9 +290,9 @@ app.post('/api/reuniones', async (req, res) => {
     }
 });
 
-app.post('/api/segmentos', async (req, res) => {
+app.post('/api/segmentos', authMiddleware, async (req, res) => {
     try {
-        const results = await syncCollection('segmentos', req.body);
+        const results = await syncCollection('segmentos', req.body, req.user.id);
         res.json({ success: true, synced: results });
     } catch (error) {
         console.error("Error POST /segmentos:", error);
@@ -149,9 +300,9 @@ app.post('/api/segmentos', async (req, res) => {
     }
 });
 
-app.post('/api/actas', async (req, res) => {
+app.post('/api/actas', authMiddleware, async (req, res) => {
     try {
-        const results = await syncCollection('actas', req.body);
+        const results = await syncCollection('actas', req.body, req.user.id);
         res.json({ success: true, synced: results });
     } catch (error) {
         console.error("Error POST /actas:", error);
@@ -263,8 +414,15 @@ ${text}
 });
 
 
-app.post('/api/procesar-audio', async (req, res) => {
+app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
     try {
+        // --- VERIFICACIÓN DE CRÉDITOS ---
+        const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+        if (!user || user.credits < 1) {
+            return res.status(402).json({ error: 'Créditos insuficientes', requirePayment: true });
+        }
+        // --- FIN VERIFICACIÓN ---
+
         const { reunionId, segmentos, agenda } = req.body;
         console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
 
@@ -276,11 +434,14 @@ app.post('/api/procesar-audio', async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
+        // Descontar 1 crédito inmediatamente
+        await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: -1 } });
+
         // 1. Generar ID único de tarea para polling
         const taskId = `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         
         // 2. Responder de inmediato al frontend para evitar Timeout de Render
-        res.json({ success: true, taskId, status: 'processing' });
+        res.json({ success: true, taskId, status: 'processing', creditsRemaining: user.credits - 1 });
         
         // Registrar tarea en memoria
         audioJobs.set(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });

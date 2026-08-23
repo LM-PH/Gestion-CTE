@@ -105,7 +105,10 @@ class SyncModule {
 
             const response = await fetch(`${this.apiUrl}/${storeName}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                },
                 body: JSON.stringify(items)
             });
 

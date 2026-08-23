@@ -266,7 +266,10 @@ class HistorialModule {
                         
                         const chunkRes = await fetch(`${window.ENV.API_URL}/api/upload-chunk`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                            },
                             body: JSON.stringify({ uploadId, chunkIndex: c, totalChunks, data: chunkData })
                         });
                         
@@ -294,7 +297,10 @@ class HistorialModule {
             // Llamada al backend
             const response = await fetch(`${window.ENV.API_URL}/api/procesar-audio`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                },
                 body: JSON.stringify({ reunionId, segmentos: processedSegmentos, agenda: agendaText })
             });
 
@@ -302,6 +308,14 @@ class HistorialModule {
                 const contentType = response.headers.get("content-type");
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     const errorData = await response.json();
+                    if (errorData.requirePayment) {
+                        this.btnIaMagic.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Redactar Acta con IA';
+                        this.btnIaMagic.disabled = false;
+                        if (confirm("No tienes créditos suficientes para procesar esta acta. ¿Deseas adquirir créditos ahora?")) {
+                            if (window.authModule) window.authModule.buyCredits();
+                        }
+                        return;
+                    }
                     const fullError = errorData.details ? `${errorData.error} (${errorData.details})` : errorData.error;
                     throw new Error(fullError || "Fallo en la comunicación con IA");
                 } else {
@@ -312,6 +326,7 @@ class HistorialModule {
                     } else if (response.status === 504 || response.status === 502) {
                          throw new Error("El servidor tardó demasiado o se está reiniciando. Intenta de nuevo en unos segundos.");
                     }
+
                     throw new Error(`Error del servidor (${response.status}): Posiblemente el audio sea muy grande o el sistema esté saturado.`);
                 }
             }
@@ -332,7 +347,9 @@ class HistorialModule {
                 
                 let pollRes;
                 try {
-                    pollRes = await fetch(`${window.ENV.API_URL}/api/procesar-audio/status/${taskId}`);
+                    pollRes = await fetch(`${window.ENV.API_URL}/api/procesar-audio/status/${taskId}`, {
+                        headers: { ...(window.authModule ? window.authModule.getAuthHeaders() : {}) }
+                    });
                 } catch (networkError) {
                     // Si el servidor se reinicia o falla la red, fetch lanza error nativo (Failed to fetch).
                     // Lo atrapamos aquí para que no rompa el ciclo y vuelva a intentar.

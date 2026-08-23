@@ -465,7 +465,10 @@ class ReunionesModule {
         try {
             const response = await fetch(`${window.ENV.API_URL}/api/analizar-pdf`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(window.authModule ? window.authModule.getAuthHeaders() : {})
+                },
                 body: JSON.stringify({ text })
             });
             

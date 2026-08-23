@@ -10,19 +10,94 @@ window.ENV = {
 
 class App {
     constructor() {
-        this.currentView = 'view-inicio';
-        this.init();
+        this.currentView = 'view-login';
+        this.apiBaseUrl = window.ENV.API_URL + '/api';
+        
+        // Exponer globalmente para módulos
+        window.app = this;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.authModule) {
+                window.authModule.init();
+            }
+            this.init();
+            this.checkAuthAndRoute();
+        });
     }
 
     init() {
         this.setupNavigation();
         this.registerServiceWorker();
+        this.createLoadingUI();
+    }
+    
+    checkAuthAndRoute() {
+        if (!window.authModule) return;
+        
+        if (!window.authModule.isLoggedIn()) {
+            this.navigate('view-login');
+            document.getElementById('side-nav').style.display = 'none';
+            document.querySelector('.app-header').style.display = 'none';
+        } else {
+            document.getElementById('side-nav').style.display = 'flex';
+            document.querySelector('.app-header').style.display = 'flex';
+            
+            if (window.authModule.isAdmin()) {
+                this.navigate('view-admin');
+                this.loadAdminData();
+            } else {
+                if (this.currentView === 'view-login' || this.currentView === 'view-admin') {
+                    this.navigate('view-inicio');
+                }
+            }
+            window.authModule.updateUI();
+        }
+    }
+    
+    async loadAdminData() {
+        if (!window.authModule || !window.authModule.isAdmin()) return;
+        const users = await window.authModule.fetchUsersForAdmin();
+        const tbody = document.getElementById('admin-users-table-body');
+        if (tbody) {
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.email}</td>
+                    <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.name || '-'}</td>
+                    <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.credits || 0}</td>
+                    <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${new Date(u.createdAt).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    createLoadingUI() {
+        const overlay = document.createElement('div');
+        overlay.id = 'app-loading-overlay';
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); display:none; justify-content:center; align-items:center; z-index:9999; flex-direction:column;';
+        overlay.innerHTML = `
+            <i class="fa-solid fa-spinner fa-spin fa-3x" style="color:var(--primary); margin-bottom:1rem;"></i>
+            <h3 id="app-loading-text">Cargando...</h3>
+        `;
+        document.body.appendChild(overlay);
+    }
+
+    showLoading(text = "Cargando...") {
+        const overlay = document.getElementById('app-loading-overlay');
+        const textEl = document.getElementById('app-loading-text');
+        if (overlay && textEl) {
+            textEl.innerText = text;
+            overlay.style.display = 'flex';
+        }
+    }
+
+    hideLoading() {
+        const overlay = document.getElementById('app-loading-overlay');
+        if (overlay) overlay.style.display = 'none';
     }
 
     setupNavigation() {
         const links = document.querySelectorAll('.nav-link');
-        const views = document.querySelectorAll('.view');
-        const menuToggle = document.getElementById('menu-toggle');
+        const menuToggle = document.getElementById('menu-btn');
         const sideNav = document.getElementById('side-nav');
         const navOverlay = document.getElementById('nav-overlay');
 
@@ -34,7 +109,7 @@ class App {
                 this.navigate(targetId);
                 
                 // Close mobile menu if open
-                if (window.innerWidth <= 768) {
+                if (window.innerWidth <= 768 && sideNav && navOverlay) {
                     sideNav.classList.remove('open');
                     navOverlay.classList.remove('show');
                 }
@@ -93,5 +168,5 @@ class App {
     }
 }
 
-// Inicializar la app
-const app = new App();
+// La instancia se inicializa y se guarda en window.app dentro de su constructor
+new App();
