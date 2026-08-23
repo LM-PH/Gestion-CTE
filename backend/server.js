@@ -304,7 +304,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                 },
                                 resumenGeneral: {
                                     type: SchemaType.STRING,
-                                    description: "Relatoría oficial extensa y detallada. Escribe EXCLUSIVAMENTE en texto narrativo normal. TIENES PROHIBIDO usar formato JSON, llaves { } o corchetes [ ] dentro de este campo."
+                                    description: "Relatoría oficial extensa y detallada. Escribe EXCLUSIVAMENTE en texto narrativo normal. Usa dobles saltos de línea (\\n\\n) obligatoriamente para separar los párrafos de forma clara. TIENES PROHIBIDO usar formato JSON, llaves o corchetes dentro de este campo."
                                 },
                                 acuerdos: {
                                     type: SchemaType.ARRAY,
@@ -316,7 +316,7 @@ app.post('/api/procesar-audio', async (req, res) => {
                                             fecha: { type: SchemaType.STRING }
                                         }
                                     },
-                                    description: "Filtra de manera implacable: EXTRAE SOLO LOS 3 A 8 ACUERDOS OFICIALES MÁS IMPORTANTES. Ignora ideas o sugerencias al aire."
+                                    description: "Filtro extremo: EXTRAE SOLO UN MÁXIMO DE 5 ACUERDOS OFICIALES MÁS IMPORTANTES. Si dudas, no lo pongas."
                                 }
                             },
                             required: ["temas", "resumenGeneral", "acuerdos"]
@@ -491,8 +491,8 @@ Tu tarea principal e inquebrantable es analizar TODOS LOS AUDIOS adjuntos y gene
 REGLAS DE ORO:
 1. AUDIO ES LA ÚNICA VERDAD: Redacta la relatoría (resumenGeneral) narrando EXCLUSIVAMENTE lo que se habló en los audios. Si algo venía en la agenda pero no se habló, NO LO INVENTES.
 2. NOMBRES GENERALES: Si no estás seguro de quién habló, usa términos genéricos como "Un docente", "El colectivo", "Un participante". Solo usa nombres propios si se dicen claramente en el audio.
-3. ACUERDOS EXTRAORDINARIOS Y FORMALES: En el campo "acuerdos", SOLO extrae compromisos institucionales o extraordinarios. EXCLUYE TOTALMENTE las actividades escolares rutinarias (ej. planificar, aplicar exámenes, dar clases). Ignora sugerencias o ideas al aire.
-4. EXTENSIÓN GLOBAL: La relatoría debe ser profunda y detallada, abarcando TODO el tiempo de grabación desde el AUDIO 1 hasta el ÚLTIMO AUDIO. Debes integrar todos los audios en un solo resumen fluido.
+3. ACUERDOS EXTRAORDINARIOS Y FORMALES: Sé extremadamente avaro. Máximo absoluto de 5 acuerdos. Si tienes la más mínima duda de si es un acuerdo o solo una charla, descártalo. EXCLUYE actividades escolares rutinarias.
+4. EXTENSIÓN Y PÁRRAFOS: La relatoría debe ser profunda. Separa la información en PÁRRAFOS cortos usando dobles saltos de línea (\\n\\n) para que no sea un bloque pegado de texto. Integra todos los audios.
 `;
 
                 if (agenda && agenda.trim() !== '') {
