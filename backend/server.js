@@ -110,6 +110,9 @@ app.get('/api/admin/users', authMiddleware, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Prohibido' });
     try {
         const users = await db.collection('users').find().toArray();
+        for (let user of users) {
+            user.actas = await db.collection('reuniones').countDocuments({ userId: user._id.toString() });
+        }
         res.json(users);
     } catch (error) {
         res.status(500).json({ error: 'Error obteniendo usuarios' });

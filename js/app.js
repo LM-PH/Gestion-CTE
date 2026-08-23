@@ -64,6 +64,7 @@ class App {
                     <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.email}</td>
                     <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.name || '-'}</td>
                     <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.credits || 0}</td>
+                    <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${u.actas || 0}</td>
                     <td style="padding:1rem; border-bottom:1px solid #e2e8f0;">${new Date(u.createdAt).toLocaleDateString()}</td>
                 </tr>
             `).join('');
