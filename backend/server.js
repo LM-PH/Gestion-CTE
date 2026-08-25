@@ -680,7 +680,7 @@ INSTRUCCIONES CLAVES:
 - Escribe una relatoría altamente detallada, exhaustiva y profesional. Tienes PROHIBIDO hacer resúmenes breves o superficiales.
 - SÍNTESIS INTELIGENTE: Si los audios son muy largos, prioriza la información clave y sé conciso. Es ABSOLUTAMENTE CRÍTICO que administres tu extensión para que el formato JSON cierre correctamente y no se corte el texto a la mitad.
 - TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas abordado lo sucedido en el ÚLTIMO AUDIO.
-3. ACUERDOS Y COMPROMISOS: Extrae TODOS los acuerdos, compromisos, tareas y decisiones que se mencionen en los audios, por más pequeños que sean. Enuméralos con claridad.
+3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
 
