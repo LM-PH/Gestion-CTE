@@ -699,11 +699,10 @@ INSTRUCCIONES CLAVES:
 1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
 2. ESTRUCTURA Y EXTENSIÓN (EXTREMADAMENTE IMPORTANTE): 
 - He calculado que el audio total dura ${totalMinutes} minutos. 
-- REGLA DE TIEMPO EFECTIVO: Analiza el audio y descuenta el tiempo que sea puro ruido de fondo, silencios o recesos.
-- REGLA ESTRICTA DE PÁRRAFOS: Por cada 10 minutos de TIEMPO EFECTIVO DE HABLA, DEBES generar EXACTAMENTE 1 párrafo extenso. 
-- Ejemplo: Si el audio dura 60 minutos, pero detectas que 40 minutos fueron ruido, el tiempo efectivo es 20 minutos. Por lo tanto, estás OBLIGADO a escribir EXACTAMENTE 2 párrafos extensos y detallados, omitiendo el ruido.
-- PROHIBICIÓN DE INVENTAR (ALUCINACIÓN): TIENES ESTRICTAMENTE PROHIBIDO inventar temas, opiniones, acuerdos o información que no se escuche en el audio. Todo lo escrito debe basarse 100% en los hechos del audio.
-- CÓMO CUMPLIR LA EXTENSIÓN SIN INVENTAR: Para llenar los párrafos requeridos sin inventar nada, debes hacer una descripción narrativa casi literal, detallando paso a paso todo lo que se dice, describiendo el flujo de la reunión, extrayendo los detalles menores y mencionando ejemplos específicos citados por los maestros.
+- REGLA MATEMÁTICA DE 10 MINUTOS = 1 PÁRRAFO: Por CADA 10 minutos de audio, sin excepción alguna, DEBES generar exactamente 1 párrafo de información. Esto nos da un total INQUEBRANTABLE de ${totalParagraphsRequired} párrafos físicos separados por saltos de línea.
+- MANEJO DEL RUIDO O SILENCIO: Si el audio contiene secciones largas de puro ruido de fondo, música, lluvia o recesos donde nadie habla, ESTÁS OBLIGADO a usar uno de tus párrafos para escribir literalmente: "Durante este periodo de la sesión no se registraron diálogos, únicamente hubo pausas o ruido de fondo." ¡NO PUEDES omitir el párrafo bajo ninguna circunstancia!
+- PROHIBICIÓN DE INVENTAR (ALUCINACIÓN): TIENES ESTRICTAMENTE PROHIBIDO inventar información. Todo lo escrito debe basarse 100% en los hechos del audio.
+- CÓMO CUMPLIR LA EXTENSIÓN SIN INVENTAR: Para rellenar los párrafos válidos sin alucinar, haz una descripción narrativa casi literal. Narra el orden de participación, extrae los detalles más pequeños y escribe ejemplos o citas textuales mencionadas por los maestros.
 3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
@@ -713,7 +712,7 @@ INSTRUCCIONES CLAVES:
                     const durMin = Math.round((uploadedFiles[j].durationSeconds || 3600) / 60);
                     const parReq = Math.max(1, Math.round(durMin / 10));
                     
-                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN DE EXTENSIÓN PARA ESTE AUDIO: Este audio dura ${durMin} minutos en total. Analiza cuántos minutos son de habla efectiva (descontando puro ruido/silencio). Escribe EXACTAMENTE 1 párrafo detallado por cada 10 minutos de HABLA EFECTIVA. ¡No inventes información, solo detalla minuciosamente lo que sí se habló!\n` });
+                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN DE EXTENSIÓN PARA ESTE AUDIO: Este audio dura ${durMin} minutos. DEBES escribir EXACTAMENTE ${parReq} párrafos físicamente separados por un salto de línea. Si sientes que ya resumiste todo, PERO te faltan párrafos para llegar a ${parReq}, dedica los párrafos restantes a describir las pausas o el ruido, o a profundizar en citas textuales que dijeron. ¡Tu meta principal es escupir exactamente ${parReq} párrafos!\n` });
                     geminiPayload.push({ fileData: uploadedFiles[j].fileData });
                     geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
                 }
