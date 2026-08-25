@@ -712,7 +712,7 @@ INSTRUCCIONES CLAVES:
                     const parReq = Math.max(1, Math.round(durMin / 10));
                     
                     geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN ESPECÍFICA PARA ESTE AUDIO: Este audio dura ${durMin} minutos. Escribe EXACTAMENTE ${parReq} párrafos densos exclusivos sobre el contenido de este audio.\n` });
-                    geminiPayload.push(uploadedFiles[j].fileData);
+                    geminiPayload.push({ fileData: uploadedFiles[j].fileData });
                     geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
                 }
 
