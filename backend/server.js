@@ -469,6 +469,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
             const uploadedFiles = [];
             try {
                 const { SchemaType } = require("@google/generative-ai");
+                const mm = require("music-metadata");
 
                 audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos y procesando con IA...' });
                 
@@ -593,6 +594,12 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                             displayName: `Audio CTE ${reunionId} - Parte ${i}`
                         });
                         
+                        let durationSeconds = 0;
+                        try {
+                            const metadata = await mm.parseFile(tempFilePath);
+                            if (metadata.format && metadata.format.duration) durationSeconds = metadata.format.duration;
+                        } catch(e) { console.warn("[IA] Error leyendo duración de audio:", e.message); }
+
                         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
                         
                         console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
@@ -608,7 +615,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                             throw new Error("El archivo falló al ser procesado por Google Gemini.");
                         }
 
-                        uploadedFiles.push({ fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
                         
                     } else if (seg.audioData) {
                         // Flujo antiguo para archivos pequeños no fragmentados
@@ -642,6 +649,12 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                             displayName: `Audio CTE ${reunionId} - Parte ${i}`
                         });
                         
+                        let durationSeconds = 0;
+                        try {
+                            const metadata = await mm.parseFile(tempFilePath);
+                            if (metadata.format && metadata.format.duration) durationSeconds = metadata.format.duration;
+                        } catch(e) { console.warn("[IA] Error leyendo duración de audio:", e.message); }
+
                         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
                         
                         console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
@@ -657,7 +670,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                             throw new Error("El archivo falló al ser procesado por Google Gemini.");
                         }
 
-                        uploadedFiles.push({ fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
                         
                     } else {
                         continue;
@@ -670,6 +683,15 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
+                let totalMinutes = 0;
+                let totalParagraphsRequired = 0;
+                
+                for (let file of uploadedFiles) {
+                    const durMin = Math.round((file.durationSeconds || 3600) / 60); // Default 60 min if failed
+                    totalMinutes += durMin;
+                    totalParagraphsRequired += Math.max(1, Math.round(durMin / 10));
+                }
+
                 let prompt = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
 Genera el acta de la sesión analizando los audios adjuntos. Te he adjuntado exactamente ${uploadedFiles.length} archivo(s) de audio.
 
@@ -677,7 +699,7 @@ INSTRUCCIONES CLAVES:
 1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
 2. ESTRUCTURA Y EXTENSIÓN: 
 - Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
-- REGLA ESTRICTA DE EXTENSIÓN: Calcula la duración total de los audios y redacta EXACTAMENTE 1 PÁRRAFO EXTENSO Y DENSO POR CADA 10 MINUTOS de grabación escuchada (ejemplo: si es 1 hora de audio, escribe 6 párrafos). Esta regla es absoluta y obligatoria.
+- REGLA ESTRICTA DE EXTENSIÓN: He calculado que el audio total dura ${totalMinutes} minutos. Por lo tanto, DEBES escribir EXACTAMENTE ${totalParagraphsRequired} PÁRRAFOS densos y extensos en total para la relatoría. Esta regla es matemática, absoluta e inquebrantable. ¡No escribas ni más ni menos de ${totalParagraphsRequired} párrafos!
 - TIENES PROHIBIDO hacer resúmenes breves o superficiales. Cada párrafo debe estar lleno de detalles y contexto.
 - TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas abordado lo sucedido en el ÚLTIMO AUDIO.
 3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
@@ -686,8 +708,11 @@ INSTRUCCIONES CLAVES:
 
                 const geminiPayload = [prompt];
                 for (let j = 0; j < uploadedFiles.length; j++) {
-                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\n` });
-                    geminiPayload.push(uploadedFiles[j]);
+                    const durMin = Math.round((uploadedFiles[j].durationSeconds || 3600) / 60);
+                    const parReq = Math.max(1, Math.round(durMin / 10));
+                    
+                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN ESPECÍFICA PARA ESTE AUDIO: Este audio dura ${durMin} minutos. Escribe EXACTAMENTE ${parReq} párrafos densos exclusivos sobre el contenido de este audio.\n` });
+                    geminiPayload.push(uploadedFiles[j].fileData);
                     geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
                 }
 
