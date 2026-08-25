@@ -282,6 +282,29 @@ class ReunionesModule {
         this.btnPause.style.display = 'inline-flex';
     }
 
+    getCargoPriority(cargo) {
+        if (!cargo) return 1; // Docentes by default
+        const c = cargo.toLowerCase();
+        
+        if (c.includes('director') || c.includes('subdirector') || c.includes('coordinador') || c.includes('atp') || c.includes('supervis')) return 5;
+        if (c.includes('intendencia') || c.includes('conserje') || c.includes('limpieza') || c.includes('mantenimiento')) return 4;
+        if (c.includes('administrativo') || c.includes('contralor') || c.includes('secretari')) return 3;
+        if (c.includes('apoyo') || c.includes('trabajo social') || c.includes('prefect') || c.includes('psicolog') || c.includes('usaer')) return 2;
+        
+        return 1; // Docentes (profesores, educadoras, etc)
+    }
+
+    sortDocentesForEscolar(docentes) {
+        return [...docentes].sort((a, b) => {
+            const priorityA = this.getCargoPriority(a.cargo);
+            const priorityB = this.getCargoPriority(b.cargo);
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+            return (a.nombre || '').localeCompare(b.nombre || '');
+        });
+    }
+
     async endReunion() {
         if (!confirm('¿Estás seguro de finalizar la reunión?')) return;
         
@@ -298,7 +321,14 @@ class ReunionesModule {
         // --- NUEVO: Generar Acta Borrador Automáticamente ---
         try {
             const docentes = await localDB.getAll('docentes');
-            const participantes = docentes.map(d => d.nombre);
+            const tipoReunion = reunion.tipoReunion || 'CTE Escolar';
+            let sortedDocentes = docentes;
+            
+            if (tipoReunion === 'CTE Escolar') {
+                sortedDocentes = this.sortDocentesForEscolar(docentes);
+            }
+            
+            const participantes = sortedDocentes.map(d => d.nombre);
             const ordenDia = this.activeAgendaItems.map(a => a.titulo);
 
             const nuevaActa = {
@@ -724,7 +754,14 @@ class ReunionesModule {
             
             // 4. Crear el acta borrador
             const docentes = await localDB.getAll('docentes');
-            const participantes = docentes.map(d => d.nombre);
+            const tipoReunion = document.getElementById('reunion-tipo').value;
+            let sortedDocentes = docentes;
+            
+            if (tipoReunion === 'CTE Escolar') {
+                sortedDocentes = this.sortDocentesForEscolar(docentes);
+            }
+            
+            const participantes = sortedDocentes.map(d => d.nombre);
             
             const nuevaActa = {
                 reunionId: reunionId,
