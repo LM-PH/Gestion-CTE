@@ -229,8 +229,13 @@ class HistorialModule {
         const reunionId = parseInt(this.actaIdInput.dataset.reunionId);
         if (!reunionId) return;
 
-        const confirmacion = confirm("Al utilizar la inteligencia artificial para redactar esta acta se descontará 1 crédito de tu cuenta. ¿Aceptas continuar?");
-        if (!confirmacion) return;
+        if (window.authModule && !window.authModule.isAdmin()) {
+            const confirmacion = confirm("Al utilizar la inteligencia artificial para redactar esta acta se descontará 1 crédito de tu cuenta. ¿Aceptas continuar?");
+            if (!confirmacion) return;
+        } else {
+            const confirmAdmin = confirm("Modo Administrador: Generar acta con IA ilimitada (sin costo). ¿Continuar?");
+            if (!confirmAdmin) return;
+        }
 
         const originalText = this.btnIaMagic.innerHTML;
         this.btnIaMagic.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando Audio...';

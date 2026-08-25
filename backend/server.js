@@ -424,17 +424,18 @@ ${text}
 app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
     try {
         // --- VERIFICACIÓN DE CRÉDITOS ---
-        if (req.user.role === 'admin') {
-            return res.status(403).json({ error: 'La cuenta de administrador no puede procesar audios ni usar créditos.' });
-        }
-        
-        if (!ObjectId.isValid(req.user.id)) {
-            return res.status(400).json({ error: 'ID de usuario inválido.' });
-        }
+        let user = null;
+        const isAdmin = req.user.role === 'admin';
 
-        const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
-        if (!user || user.credits < 1) {
-            return res.status(402).json({ error: 'Créditos insuficientes', requirePayment: true });
+        if (!isAdmin) {
+            if (!ObjectId.isValid(req.user.id)) {
+                return res.status(400).json({ error: 'ID de usuario inválido.' });
+            }
+
+            user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+            if (!user || user.credits < 1) {
+                return res.status(402).json({ error: 'Créditos insuficientes', requirePayment: true });
+            }
         }
         // --- FIN VERIFICACIÓN ---
 
@@ -449,14 +450,16 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        // Descontar 1 crédito inmediatamente
-        await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: -1 } });
+        // Descontar 1 crédito inmediatamente (solo si no es admin)
+        if (!isAdmin) {
+            await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: -1 } });
+        }
 
         // 1. Generar ID único de tarea para polling
         const taskId = `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         
         // 2. Responder de inmediato al frontend para evitar Timeout de Render
-        res.json({ success: true, taskId, status: 'processing', creditsRemaining: user.credits - 1 });
+        res.json({ success: true, taskId, status: 'processing', creditsRemaining: isAdmin ? 'Ilimitados' : (user.credits - 1) });
         
         // Registrar tarea en memoria
         audioJobs.set(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });
