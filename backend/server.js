@@ -697,11 +697,11 @@ Genera el acta de la sesión analizando los audios adjuntos. Te he adjuntado exa
 
 INSTRUCCIONES CLAVES:
 1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
-2. ESTRUCTURA Y EXTENSIÓN: 
-- Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
-- REGLA ESTRICTA DE EXTENSIÓN: He calculado que el audio total dura ${totalMinutes} minutos. Por lo tanto, DEBES escribir EXACTAMENTE ${totalParagraphsRequired} PÁRRAFOS densos y extensos en total para la relatoría. Esta regla es matemática, absoluta e inquebrantable. ¡No escribas ni más ni menos de ${totalParagraphsRequired} párrafos!
-- TIENES PROHIBIDO hacer resúmenes breves o superficiales. Cada párrafo debe estar lleno de detalles y contexto.
-- TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas abordado lo sucedido en el ÚLTIMO AUDIO.
+2. ESTRUCTURA Y EXTENSIÓN (EXTREMADAMENTE IMPORTANTE): 
+- He calculado que el audio total dura ${totalMinutes} minutos. 
+- REGLA ESTRICTA: Tienes prohibido resumir. Por cada 10 minutos de audio, DEBES generar 1 párrafo extenso. Esto da un total de ${totalParagraphsRequired} PÁRRAFOS OBLIGATORIOS.
+- Si el audio tiene silencios o información repetitiva, NO LO RESUMAS EN UN PÁRRAFO CORTO. En su lugar, expande tu escritura realizando un análisis pedagógico profundo, detallando las implicaciones de lo hablado, el contexto escolar, y desglosando paso a paso las opiniones vertidas.
+- Tu trabajo será rechazado si entregas menos de ${totalParagraphsRequired} párrafos en total.
 3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
@@ -711,7 +711,7 @@ INSTRUCCIONES CLAVES:
                     const durMin = Math.round((uploadedFiles[j].durationSeconds || 3600) / 60);
                     const parReq = Math.max(1, Math.round(durMin / 10));
                     
-                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN ESPECÍFICA PARA ESTE AUDIO: Este audio dura ${durMin} minutos. Escribe EXACTAMENTE ${parReq} párrafos densos exclusivos sobre el contenido de este audio.\n` });
+                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN DE EXTENSIÓN PARA ESTE AUDIO: Este audio dura ${durMin} minutos. Divide mentalmente este audio en bloques de 10 minutos y escribe EXACTAMENTE 1 párrafo por cada bloque. En total DEBES escribir ${parReq} párrafos robustos y detallados EXCLUSIVAMENTE sobre este audio.\n` });
                     geminiPayload.push({ fileData: uploadedFiles[j].fileData });
                     geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
                 }
