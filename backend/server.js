@@ -420,6 +420,25 @@ ${text}
     }
 });
 
+app.post('/api/cobrar-acta', authMiddleware, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            return res.json({ success: true, creditsRemaining: 'Ilimitados' });
+        }
+        if (!ObjectId.isValid(req.user.id)) return res.status(400).json({ error: 'ID de usuario inválido.' });
+        
+        const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+        if (!user || user.credits < 1) {
+            return res.status(402).json({ error: 'Créditos insuficientes', requirePayment: true });
+        }
+        
+        await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: -1 } });
+        res.json({ success: true, creditsRemaining: user.credits - 1 });
+    } catch (error) {
+        console.error("Error en cobrar-acta:", error);
+        res.status(500).json({ error: 'Error interno al procesar el cobro.' });
+    }
+});
 
 app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
     try {
@@ -450,16 +469,14 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
             return res.status(400).json({ error: 'No se recibieron audios.' });
         }
 
-        // Descontar 1 crédito inmediatamente (solo si no es admin)
-        if (!isAdmin) {
-            await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: -1 } });
-        }
+        // No descontamos crédito aquí por petición del usuario (se descontará al ver Vista Previa)
+        // Solo verificamos que tenga créditos (hecho arriba)
 
         // 1. Generar ID único de tarea para polling
         const taskId = `task_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
         
         // 2. Responder de inmediato al frontend para evitar Timeout de Render
-        res.json({ success: true, taskId, status: 'processing', creditsRemaining: isAdmin ? 'Ilimitados' : (user.credits - 1) });
+        res.json({ success: true, taskId, status: 'processing', creditsRemaining: isAdmin ? 'Ilimitados' : user.credits });
         
         // Registrar tarea en memoria
         audioJobs.set(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });

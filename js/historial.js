@@ -229,14 +229,6 @@ class HistorialModule {
         const reunionId = parseInt(this.actaIdInput.dataset.reunionId);
         if (!reunionId) return;
 
-        if (window.authModule && !window.authModule.isAdmin()) {
-            const confirmacion = confirm("Al utilizar la inteligencia artificial para redactar esta acta se descontará 1 crédito de tu cuenta. ¿Aceptas continuar?");
-            if (!confirmacion) return;
-        } else {
-            const confirmAdmin = confirm("Modo Administrador: Generar acta con IA ilimitada (sin costo). ¿Continuar?");
-            if (!confirmAdmin) return;
-        }
-
         const originalText = this.btnIaMagic.innerHTML;
         this.btnIaMagic.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando Audio...';
         this.btnIaMagic.disabled = true;
@@ -433,12 +425,64 @@ class HistorialModule {
         }
     }
 
-    previewPDF() {
+    async cobrarSiEsNecesario() {
+        const actaId = parseInt(this.actaIdInput.value);
+        if (!actaId) return false;
+        const acta = await localDB.getById('actas', actaId);
+        if (!acta) return false;
+
+        // Si ya está pagada o es admin, dejar pasar gratis
+        if (acta.paid || (window.authModule && window.authModule.isAdmin())) {
+            return true;
+        }
+
+        const confirmacion = confirm("Para ver la vista previa o descargar el PDF final, se descontará 1 crédito de tu cuenta. ¿Aceptas continuar?");
+        if (!confirmacion) return false;
+
+        try {
+            const token = localStorage.getItem('cte_token');
+            const response = await fetch(`${app.apiBaseUrl}/cobrar-acta`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            
+            if (data.requirePayment) {
+                alert("Créditos insuficientes. Serás redirigido para adquirir más créditos.");
+                app.navigate('view-privacidad');
+                return false;
+            }
+            if (!data.success) {
+                alert("Error al procesar el cobro: " + (data.error || 'Desconocido'));
+                return false;
+            }
+
+            // Marcar acta como pagada
+            acta.paid = true;
+            await localDB.update('actas', acta);
+
+            // Actualizar UI de usuario
+            if (window.authModule && window.authModule.user) {
+                window.authModule.user.credits = data.creditsRemaining;
+                window.authModule.updateUI();
+            }
+            
+            return true;
+        } catch (e) {
+            console.error("Error contactando al servidor para cobro:", e);
+            alert("Error de red. No se pudo verificar tu saldo.");
+            return false;
+        }
+    }
+
+    async previewPDF() {
+        if (!(await this.cobrarSiEsNecesario())) return;
         this.syncPrintElements();
         window.print(); // Se apoya en el CSS @media print
     }
 
     async downloadPDF() {
+        if (!(await this.cobrarSiEsNecesario())) return;
         this.syncPrintElements();
         
         const element = document.getElementById('acta-document-container');
