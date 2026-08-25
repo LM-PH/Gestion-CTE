@@ -677,8 +677,8 @@ INSTRUCCIONES CLAVES:
 1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
 2. ESTRUCTURA Y EXTENSIÓN: 
 - Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
-- Escribe una relatoría altamente detallada, exhaustiva y profesional. Tienes PROHIBIDO hacer resúmenes breves o superficiales.
-- SÍNTESIS INTELIGENTE: Si los audios son muy largos, prioriza la información clave y sé conciso. Es ABSOLUTAMENTE CRÍTICO que administres tu extensión para que el formato JSON cierre correctamente y no se corte el texto a la mitad.
+- REGLA ESTRICTA DE EXTENSIÓN: Calcula (o estima) la duración total de los audios y redacta EXACTAMENTE 1 PÁRRAFO POR CADA 10 MINUTOS de grabación escuchada (ejemplo: si es 1 hora de audio, escribe 6 párrafos). Esta regla es absoluta y obligatoria.
+- ADMINISTRACIÓN DE MEMORIA: Es ABSOLUTAMENTE CRÍTICO que el formato JSON cierre correctamente y no se corte el texto a la mitad. Si es necesario para no sobrepasar tu memoria, haz los párrafos un poco más cortos, pero respeta la regla de 1 párrafo por cada 10 minutos.
 - TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas abordado lo sucedido en el ÚLTIMO AUDIO.
 3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
