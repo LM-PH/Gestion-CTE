@@ -678,9 +678,9 @@ INSTRUCCIONES CLAVES:
 2. ESTRUCTURA Y EXTENSIÓN: 
 - Estructura la relatoría haciendo un salto de línea y título por cada uno de los ${uploadedFiles.length} archivos de audio adjuntos. 
 - Escribe una relatoría altamente detallada, exhaustiva y profesional. Tienes PROHIBIDO hacer resúmenes breves o superficiales.
-- ASEGÚRATE de administrar la longitud para que el texto esté completo y el formato JSON cierre correctamente al final. Nunca cortes el texto a medias.
-- TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas relatado exhaustivamente lo sucedido en el ÚLTIMO AUDIO.
-3. ACUERDOS MAYORES: Para el campo "acuerdos", selecciona únicamente las decisiones administrativas extraordinarias. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS.
+- SÍNTESIS INTELIGENTE: Si los audios son muy largos, prioriza la información clave y sé conciso. Es ABSOLUTAMENTE CRÍTICO que administres tu extensión para que el formato JSON cierre correctamente y no se corte el texto a la mitad.
+- TIENES PROHIBIDO dar por terminada la relatoría hasta que hayas abordado lo sucedido en el ÚLTIMO AUDIO.
+3. ACUERDOS Y COMPROMISOS: Extrae TODOS los acuerdos, compromisos, tareas y decisiones que se mencionen en los audios, por más pequeños que sean. Enuméralos con claridad.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
 `;
 
