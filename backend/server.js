@@ -173,6 +173,7 @@ app.post('/api/payments/webhook', async (req, res) => {
 
 // Endpoint MOCK temporal para acreditar créditos (Solo para pruebas del cliente)
 app.post('/api/payments/mock-success', authMiddleware, async (req, res) => {
+    if (req.user.role === 'admin' || !ObjectId.isValid(req.user.id)) return res.status(400).json({ error: 'Inválido' });
     await db.collection('users').updateOne({ _id: new ObjectId(req.user.id) }, { $inc: { credits: 1 } });
     res.json({ success: true, message: 'Crédito añadido exitosamente.' });
 });
@@ -219,6 +220,8 @@ app.post('/api/docentes', authMiddleware, async (req, res) => {
 app.put('/api/docentes/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'ID inválido' });
+        
         const updateData = { ...req.body };
         delete updateData._id; // No intentar sobrescribir el _id
         
@@ -239,6 +242,7 @@ app.put('/api/docentes/:id', authMiddleware, async (req, res) => {
 app.delete('/api/docentes/:id', authMiddleware, async (req, res) => {
     try {
         const { id } = req.params;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'ID inválido' });
         await db.collection('docentes').deleteOne({ _id: new ObjectId(id), userId: req.user.id });
         res.json({ success: true, message: 'Docente eliminado' });
     } catch (error) {
@@ -420,6 +424,14 @@ ${text}
 app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
     try {
         // --- VERIFICACIÓN DE CRÉDITOS ---
+        if (req.user.role === 'admin') {
+            return res.status(403).json({ error: 'La cuenta de administrador no puede procesar audios ni usar créditos.' });
+        }
+        
+        if (!ObjectId.isValid(req.user.id)) {
+            return res.status(400).json({ error: 'ID de usuario inválido.' });
+        }
+
         const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
         if (!user || user.credits < 1) {
             return res.status(402).json({ error: 'Créditos insuficientes', requirePayment: true });
