@@ -700,7 +700,8 @@ INSTRUCCIONES CLAVES:
 2. ESTRUCTURA Y EXTENSIÓN (EXTREMADAMENTE IMPORTANTE): 
 - He calculado que el audio total dura ${totalMinutes} minutos. 
 - REGLA ESTRICTA: Tienes prohibido resumir. Por cada 10 minutos de audio, DEBES generar 1 párrafo extenso. Esto da un total de ${totalParagraphsRequired} PÁRRAFOS OBLIGATORIOS.
-- Si el audio tiene silencios o información repetitiva, NO LO RESUMAS EN UN PÁRRAFO CORTO. En su lugar, expande tu escritura realizando un análisis pedagógico profundo, detallando las implicaciones de lo hablado, el contexto escolar, y desglosando paso a paso las opiniones vertidas.
+- PROHIBICIÓN DE INVENTAR (ALUCINACIÓN): TIENES ESTRICTAMENTE PROHIBIDO inventar temas, opiniones, acuerdos o información que no se escuche en el audio. Todo lo escrito debe basarse 100% en los hechos del audio.
+- CÓMO CUMPLIR LA EXTENSIÓN SIN INVENTAR: Para llenar los ${totalParagraphsRequired} párrafos sin inventar nada, debes hacer una descripción narrativa casi literal, detallando paso a paso todo lo que se dice, describiendo el flujo de la reunión, extrayendo los detalles menores y mencionando ejemplos específicos citados por los maestros.
 - Tu trabajo será rechazado si entregas menos de ${totalParagraphsRequired} párrafos en total.
 3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
 4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
