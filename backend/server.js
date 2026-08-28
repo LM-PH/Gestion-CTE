@@ -683,73 +683,81 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                 audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
 
-                let totalMinutes = 0;
-                let totalParagraphsRequired = 0;
-                
-                for (let file of uploadedFiles) {
-                    const durMin = Math.round((file.durationSeconds || 3600) / 60); // Default 60 min if failed
-                    totalMinutes += durMin;
-                    totalParagraphsRequired += Math.max(1, Math.round(durMin / 10));
-                }
+                let resumenGeneralCompleto = "";
+                audioJobs.set(taskId, { status: 'processing', progress: 'Analizando audio por bloques (esto tomará varios minutos)...' });
 
-                let prompt = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
-Genera el acta de la sesión analizando los audios adjuntos. Te he adjuntado exactamente ${uploadedFiles.length} archivo(s) de audio.
-
-INSTRUCCIONES CLAVES:
-1. ENSAYO NARRATIVO: Escribe la relatoría (resumenGeneral) narrando lo que escuchas en formato de ensayo tradicional. Usa texto limpio y separa con dobles saltos de línea. 
-2. ESTRUCTURA Y EXTENSIÓN (EXTREMADAMENTE IMPORTANTE): 
-- He calculado que el audio total dura ${totalMinutes} minutos. 
-- REGLA MATEMÁTICA DE 10 MINUTOS = 1 PÁRRAFO: Por CADA 10 minutos de audio, sin excepción alguna, DEBES generar exactamente 1 párrafo de información. Esto nos da un total INQUEBRANTABLE de ${totalParagraphsRequired} párrafos físicos separados por saltos de línea.
-- MANEJO DEL RUIDO O SILENCIO: Si el audio contiene secciones largas de puro ruido de fondo, música, lluvia o recesos donde nadie habla, ESTÁS OBLIGADO a usar uno de tus párrafos para escribir literalmente: "Durante este periodo de la sesión no se registraron diálogos, únicamente hubo pausas o ruido de fondo." ¡NO PUEDES omitir el párrafo bajo ninguna circunstancia!
-- PROHIBICIÓN DE INVENTAR (ALUCINACIÓN): TIENES ESTRICTAMENTE PROHIBIDO inventar información. Todo lo escrito debe basarse 100% en los hechos del audio.
-- CÓMO CUMPLIR LA EXTENSIÓN SIN INVENTAR: Para rellenar los párrafos válidos sin alucinar, haz una descripción narrativa casi literal. Narra el orden de participación, extrae los detalles más pequeños y escribe ejemplos o citas textuales mencionadas por los maestros.
-3. ACUERDOS Y COMPROMISOS: Extrae los acuerdos, compromisos, tareas y decisiones principales. TIENES PROHIBIDO EXTRAER MÁS DE 10 ACUERDOS. Si hay más, selecciona solo los 10 más importantes.
-4. IDENTIFICACIÓN: PROHIBIDO asumir cargos. NO uses las palabras "directora" o "director" a menos que lo digan explícitamente. Usa nombres genéricos ("La persona que coordina", "Un docente") si no se menciona un nombre claro.
-`;
-
-                const geminiPayload = [prompt];
                 for (let j = 0; j < uploadedFiles.length; j++) {
-                    const durMin = Math.round((uploadedFiles[j].durationSeconds || 3600) / 60);
+                    const file = uploadedFiles[j];
+                    const durMin = Math.round((file.durationSeconds || 3600) / 60);
                     const parReq = Math.max(1, Math.round(durMin / 10));
                     
-                    geminiPayload.push({ text: `\n\n--- INICIO DE AUDIO ${j + 1} ---\nINSTRUCCIÓN DE EXTENSIÓN PARA ESTE AUDIO: Este audio dura ${durMin} minutos. DEBES escribir EXACTAMENTE ${parReq} párrafos físicamente separados por un salto de línea. Si sientes que ya resumiste todo, PERO te faltan párrafos para llegar a ${parReq}, dedica los párrafos restantes a describir las pausas o el ruido, o a profundizar en citas textuales que dijeron. ¡Tu meta principal es escupir exactamente ${parReq} párrafos!\n` });
-                    geminiPayload.push({ fileData: uploadedFiles[j].fileData });
-                    geminiPayload.push({ text: `\n--- FIN DE AUDIO ${j + 1} ---\n` });
-                }
+                    resumenGeneralCompleto += `**=== Análisis de Audio ${j + 1} ===**\n\n`;
 
-                // Ejecutar generación con la API nativa y URIs bien etiquetadas
-                const result = await model.generateContent(geminiPayload);
-                const text = result.response.text();
+                    for (let block = 0; block < parReq; block++) {
+                        const startMin = block * 10;
+                        const endMin = (block + 1) * 10;
+                        
+                        const promptFragmento = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
+Tu tarea es narrar EXCLUSIVAMENTE lo que ocurre en este bloque de 10 minutos (del minuto ${startMin}:00 al ${endMin}:00 del archivo adjunto).
+Escribe 1 solo párrafo. Debe ser sumamente extenso, detallado y exhaustivo.
+Narra intervenciones, debates, temas tratados y el flujo general de la reunión.
+Si en este lapso específico de tiempo solo hay ruido, pausas, música o silencio, TIENES ESTRICTAMENTE PROHIBIDO INVENTAR INFORMACIÓN. En ese caso, escribe literalmente: "Durante este bloque de tiempo (${startMin}:00 - ${endMin}:00) no se registraron diálogos, únicamente hubo pausas o ruido de fondo."
+IMPORTANTE: Devuelve únicamente el párrafo de texto limpio, sin saludos, ni títulos, ni viñetas.`;
 
-                console.log(`[IA] Tarea ${taskId} finalizada. Gemini respondió.`);
-                
-                let iaData;
-                try {
-                    iaData = JSON.parse(text);
-                    if (iaData.acuerdos && Array.isArray(iaData.acuerdos)) {
-                        iaData.acuerdos = iaData.acuerdos.slice(0, 10);
-                    }
-                } catch (e) {
-                    console.warn(`[IA] Error parseando JSON en tarea ${taskId}, intentando rescate manual por corte de tokens.`);
-                    
-                    let resumen = "";
-                    const resMatch = text.match(/"resumenGeneral"\s*:\s*"([\s\S]*?)",?\s*("acuerdos"|})/);
-                    if (resMatch) {
-                        resumen = resMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-                    } else {
-                        const resMatch2 = text.match(/"resumenGeneral"\s*:\s*"([\s\S]*)/);
-                        if (resMatch2) {
-                            resumen = resMatch2[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
-                            resumen = resumen.replace(/["}\]]*$/, '');
-                        } else {
-                            resumen = text;
+                        const payload = [
+                            { text: promptFragmento },
+                            { fileData: file.fileData }
+                        ];
+
+                        try {
+                            const result = await model.generateContent(payload);
+                            const text = result.response.text();
+                            resumenGeneralCompleto += text.trim() + "\n\n";
+                        } catch (e) {
+                            console.error(`[IA] Error en bloque ${block} de audio ${j}:`, e);
+                            resumenGeneralCompleto += `[Error al procesar el fragmento del minuto ${startMin} al ${endMin}]\n\n`;
                         }
                     }
-                    
-                    iaData = { temas: [], resumenGeneral: resumen, acuerdos: [] };
                 }
 
-                // Actualizar tarea en memoria como finalizada
+                audioJobs.set(taskId, { status: 'processing', progress: 'Extrayendo acuerdos de la relatoría completa...' });
+
+                const promptAcuerdos = `Aquí tienes la relatoría completa y exhaustiva de una sesión de Consejo Técnico Escolar generada por bloques de tiempo:
+
+--- INICIO DE RELATORÍA ---
+${resumenGeneralCompleto}
+--- FIN DE RELATORÍA ---
+
+Tu tarea es analizar este texto y extraer los acuerdos, tareas y compromisos principales.
+TIENES PROHIBIDO extraer más de 10 acuerdos.
+Devuelve tu respuesta ESTRICTAMENTE en este formato JSON (sin texto adicional ni comillas invertidas extra):
+{
+  "acuerdos": [
+    "Acuerdo 1...",
+    "Acuerdo 2..."
+  ]
+}
+Si no hubo ningún acuerdo explícito, devuelve el arreglo vacío [].`;
+
+                let iaData = { resumenGeneral: resumenGeneralCompleto, acuerdos: [] };
+                
+                try {
+                    const resultAcuerdos = await model.generateContent(promptAcuerdos);
+                    let textAcuerdos = resultAcuerdos.response.text();
+                    
+                    // Limpiar markdown tags y parsear JSON
+                    textAcuerdos = textAcuerdos.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(textAcuerdos);
+                    
+                    if (parsed.acuerdos && Array.isArray(parsed.acuerdos)) {
+                        iaData.acuerdos = parsed.acuerdos.slice(0, 10);
+                    }
+                } catch (e) {
+                    console.error(`[IA] Error extrayendo acuerdos o parseando JSON en tarea ${taskId}:`, e);
+                }
+
+                console.log(`[IA] Tarea ${taskId} finalizada exitosamente con segmentación de tiempo.`);
+                
                 audioJobs.set(taskId, { status: 'completed', data: iaData });
 
                 // Opcional: Limpiar archivos en la nube de Google tras finalizar (recomendado para privacidad y espacio)
