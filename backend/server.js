@@ -697,12 +697,11 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         const startMin = block * 10;
                         const endMin = (block + 1) * 10;
                         
-                        const promptFragmento = `Actúa como Secretario Técnico de un Consejo Técnico Escolar.
-Tu tarea es narrar EXCLUSIVAMENTE lo que ocurre en este bloque de 10 minutos (del minuto ${startMin}:00 al ${endMin}:00 del archivo adjunto).
-Escribe 1 solo párrafo. Debe ser sumamente extenso, detallado y exhaustivo.
-Narra intervenciones, debates, temas tratados y el flujo general de la reunión.
-Si en este lapso específico de tiempo solo hay ruido, pausas, música o silencio, TIENES ESTRICTAMENTE PROHIBIDO INVENTAR INFORMACIÓN. En ese caso, escribe literalmente: "Durante este bloque de tiempo (${startMin}:00 - ${endMin}:00) no se registraron diálogos, únicamente hubo pausas o ruido de fondo."
-IMPORTANTE: Devuelve únicamente el párrafo de texto limpio, sin saludos, ni títulos, ni viñetas.`;
+                        const promptFragmento = `Eres un transcriptor profesional.
+Tu tarea es transcribir EXCLUSIVAMENTE lo que se habla en este bloque de 10 minutos (del minuto ${startMin}:00 al ${endMin}:00 del archivo adjunto).
+Transcribe el diálogo con la máxima precisión posible. Extrae todas las participaciones, debates y temas hablados. NO RESUMAS.
+Si en este lapso específico de tiempo solo hay ruido, pausas, música o silencio, escribe literalmente: "Silencio o ruido de fondo."
+IMPORTANTE: Devuelve únicamente el texto de la transcripción limpia.`;
 
                         const payload = [
                             { text: promptFragmento },
@@ -720,18 +719,22 @@ IMPORTANTE: Devuelve únicamente el párrafo de texto limpio, sin saludos, ni t�
                     }
                 }
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Extrayendo acuerdos de la relatoría completa...' });
+                audioJobs.set(taskId, { status: 'processing', progress: 'Redactando acta ejecutiva a partir de la transcripción...' });
 
-                const promptAcuerdos = `Aquí tienes la relatoría completa y exhaustiva de una sesión de Consejo Técnico Escolar generada por bloques de tiempo:
+                const promptFinal = `Aquí tienes la transcripción completa de una junta (Consejo Técnico Escolar):
 
---- INICIO DE RELATORÍA ---
+--- INICIO DE TRANSCRIPCIÓN ---
 ${resumenGeneralCompleto}
---- FIN DE RELATORÍA ---
+--- FIN DE TRANSCRIPCIÓN ---
 
-Tu tarea es analizar este texto y extraer los acuerdos, tareas y compromisos principales.
+Tu tarea es leer esta transcripción y redactar un acta de trabajo o junta ejecutiva (relatoría).
+La relatoría debe extraer lo más importante de la junta, organizada de forma coherente y ejecutiva. Dale un carácter profesional de acta de trabajo.
+Además, extrae los acuerdos y compromisos principales.
 TIENES PROHIBIDO extraer más de 10 acuerdos.
-Devuelve tu respuesta ESTRICTAMENTE en este formato JSON (sin texto adicional ni comillas invertidas extra):
+
+Devuelve tu respuesta ESTRICTAMENTE en este formato JSON (sin texto adicional ni comillas extra):
 {
+  "resumenGeneral": "Aquí va el texto completo de la relatoría ejecutiva. Usa dobles saltos de línea (\\n\\n) para separar párrafos.",
   "acuerdos": [
     "Acuerdo 1...",
     "Acuerdo 2..."
@@ -739,21 +742,27 @@ Devuelve tu respuesta ESTRICTAMENTE en este formato JSON (sin texto adicional ni
 }
 Si no hubo ningún acuerdo explícito, devuelve el arreglo vacío [].`;
 
-                let iaData = { resumenGeneral: resumenGeneralCompleto, acuerdos: [] };
+                let iaData = { resumenGeneral: "", acuerdos: [] };
                 
                 try {
-                    const resultAcuerdos = await model.generateContent(promptAcuerdos);
-                    let textAcuerdos = resultAcuerdos.response.text();
+                    const resultFinal = await model.generateContent(promptFinal);
+                    let textFinal = resultFinal.response.text();
                     
                     // Limpiar markdown tags y parsear JSON
-                    textAcuerdos = textAcuerdos.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    const parsed = JSON.parse(textAcuerdos);
+                    textFinal = textFinal.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(textFinal);
                     
+                    if (parsed.resumenGeneral) {
+                        iaData.resumenGeneral = parsed.resumenGeneral;
+                    } else {
+                        iaData.resumenGeneral = "Error estructurando la relatoría.";
+                    }
+
                     if (parsed.acuerdos && Array.isArray(parsed.acuerdos)) {
                         iaData.acuerdos = parsed.acuerdos.slice(0, 10);
                     }
                 } catch (e) {
-                    console.error(`[IA] Error extrayendo acuerdos o parseando JSON en tarea ${taskId}:`, e);
+                    console.error(`[IA] Error extrayendo acta o parseando JSON en tarea ${taskId}:`, e);
                 }
 
                 console.log(`[IA] Tarea ${taskId} finalizada exitosamente con segmentación de tiempo.`);
