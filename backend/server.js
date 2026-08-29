@@ -67,12 +67,19 @@ app.post('/api/auth/google', async (req, res) => {
                 email: payload.email,
                 name: payload.name,
                 picture: payload.picture,
-                credits: 0, // Inicia con 0 créditos
-                role: 'user',
+                credits: payload.email === 'zlagustin10@gmail.com' ? 999 : 0,
+                role: payload.email === 'zlagustin10@gmail.com' ? 'admin' : 'user',
                 createdAt: new Date()
             };
             const result = await db.collection('users').insertOne(newUser);
             user = { _id: result.insertedId, ...newUser };
+        } else {
+            // Upgrade for admin if not already set
+            if (user.email === 'zlagustin10@gmail.com') {
+                user.role = 'admin';
+                user.credits = 999;
+                await db.collection('users').updateOne({ _id: user._id }, { $set: { role: 'admin', credits: 999 } });
+            }
         }
         
         const jwtToken = jwt.sign(
@@ -425,7 +432,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
     try {
         // --- VERIFICACIÓN DE CRÉDITOS ---
         let user = null;
-        const isAdmin = req.user.role === 'admin';
+        const isAdmin = req.user.role === 'admin' || req.user.email === 'zlagustin10@gmail.com';
 
         if (!isAdmin) {
             if (!ObjectId.isValid(req.user.id)) {
