@@ -691,7 +691,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini para transcripción...`);
 
                 // Usaremos Gemini 1.5 Pro que tiene amplio contexto
-                const modelStep1 = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+                const modelStep1 = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
                 const promptStep1 = `Eres un transcriptor y secretario experto. A continuación recibes los audios completos de una junta de Consejo Técnico Escolar (pueden ser uno o varios archivos, de hasta 90+ minutos).
 Realiza una transcripción/relatoría MUY exhaustiva de TODO lo que se habla. No resumas de forma breve, necesito que describas minuciosamente todo lo que ocurre, los temas abordados, las aportaciones de cada participante, los debates y los acuerdos, en un formato de texto largo y detallado. 
@@ -715,7 +715,7 @@ Escucha y procesa los archivos completos. Escribe todo lo necesario para que no 
                 console.log(`[IA] Transcripción completada. Longitud: ${transcripcionDetallada.length} caracteres. Iniciando redacción del acta...`);
 
                 const modelStep2 = genAI.getGenerativeModel({ 
-                    model: "gemini-1.5-pro",
+                    model: "gemini-3.1-pro-preview",
                     generationConfig: { 
                         responseMimeType: "application/json",
                         responseSchema: {
