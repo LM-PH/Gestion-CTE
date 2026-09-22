@@ -687,92 +687,99 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                     throw new Error("Formato de audio no soportado o vacío.");
                 }
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Generando relatoría con IA (puede tardar minutos)...' });
-                console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini...`);
+                audioJobs.set(taskId, { status: 'processing', progress: 'Paso 1/2: Analizando y transcribiendo TODO el audio (esto puede tomar un par de minutos)...' });
+                console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini para transcripción...`);
 
-                let resumenGeneralCompleto = "";
-                audioJobs.set(taskId, { status: 'processing', progress: 'Analizando audio por bloques (esto tomará varios minutos)...' });
+                // Usaremos Gemini 1.5 Pro que tiene amplio contexto
+                const modelStep1 = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
-                for (let j = 0; j < uploadedFiles.length; j++) {
-                    const file = uploadedFiles[j];
-                    const durMin = Math.round((file.durationSeconds || 3600) / 60);
-                    const parReq = Math.max(1, Math.round(durMin / 10));
-                    
-                    resumenGeneralCompleto += `**=== Análisis de Audio ${j + 1} ===**\n\n`;
+                const promptStep1 = `Eres un transcriptor y secretario experto. A continuación recibes los audios completos de una junta de Consejo Técnico Escolar (pueden ser uno o varios archivos, de hasta 90+ minutos).
+Realiza una transcripción/relatoría MUY exhaustiva de TODO lo que se habla. No resumas de forma breve, necesito que describas minuciosamente todo lo que ocurre, los temas abordados, las aportaciones de cada participante, los debates y los acuerdos, en un formato de texto largo y detallado. 
+Escucha y procesa los archivos completos. Escribe todo lo necesario para que no se pierda NINGÚN detalle de la junta.`;
 
-                    for (let block = 0; block < parReq; block++) {
-                        const startMin = block * 10;
-                        const endMin = (block + 1) * 10;
-                        
-                        const promptFragmento = `Eres un transcriptor profesional.
-Tu tarea es transcribir EXCLUSIVAMENTE lo que se habla en este bloque de 10 minutos (del minuto ${startMin}:00 al ${endMin}:00 del archivo adjunto).
-Transcribe el diálogo con la máxima precisión posible. Extrae todas las participaciones, debates y temas hablados. NO RESUMAS.
-Si en este lapso específico de tiempo solo hay ruido, pausas, música o silencio, escribe literalmente: "Silencio o ruido de fondo."
-IMPORTANTE: Devuelve únicamente el texto de la transcripción limpia.`;
+                const payloadStep1 = [
+                    { text: promptStep1 },
+                    ...uploadedFiles.map(f => ({ fileData: f.fileData }))
+                ];
 
-                        const payload = [
-                            { text: promptFragmento },
-                            { fileData: file.fileData }
-                        ];
-
-                        try {
-                            const result = await model.generateContent(payload);
-                            const text = result.response.text();
-                            resumenGeneralCompleto += text.trim() + "\n\n";
-                        } catch (e) {
-                            console.error(`[IA] Error en bloque ${block} de audio ${j}:`, e);
-                            resumenGeneralCompleto += `[Error al procesar el fragmento del minuto ${startMin} al ${endMin}]\n\n`;
-                        }
-                    }
+                let transcripcionDetallada = "";
+                try {
+                    const resultStep1 = await modelStep1.generateContent(payloadStep1);
+                    transcripcionDetallada = resultStep1.response.text();
+                } catch (e) {
+                    console.error("[IA] Error en Paso 1 (Transcripción):", e);
+                    throw new Error("Fallo al transcribir los audios. " + e.message);
                 }
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Redactando acta ejecutiva a partir de la transcripción...' });
+                audioJobs.set(taskId, { status: 'processing', progress: 'Paso 2/2: Redactando el acta formal, extensa y ejecutiva...' });
+                console.log(`[IA] Transcripción completada. Longitud: ${transcripcionDetallada.length} caracteres. Iniciando redacción del acta...`);
 
-                const promptFinal = `Aquí tienes la transcripción completa de una junta (Consejo Técnico Escolar):
+                const modelStep2 = genAI.getGenerativeModel({ 
+                    model: "gemini-1.5-pro",
+                    generationConfig: { 
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: SchemaType.OBJECT,
+                            properties: {
+                                resumenGeneral: {
+                                    type: SchemaType.STRING,
+                                    description: "Relatoría oficial extensa y bien redactada. Usa dobles saltos de línea para separar párrafos."
+                                },
+                                acuerdos: {
+                                    type: SchemaType.ARRAY,
+                                    items: {
+                                        type: SchemaType.OBJECT,
+                                        properties: {
+                                            texto: { type: SchemaType.STRING },
+                                            responsable: { type: SchemaType.STRING },
+                                            fecha: { type: SchemaType.STRING }
+                                        }
+                                    }
+                                },
+                                temas: {
+                                    type: SchemaType.ARRAY,
+                                    items: { type: SchemaType.STRING }
+                                }
+                            },
+                            required: ["resumenGeneral", "acuerdos", "temas"]
+                        }
+                    }
+                });
 
---- INICIO DE TRANSCRIPCIÓN ---
-${resumenGeneralCompleto}
---- FIN DE TRANSCRIPCIÓN ---
+                const promptStep2 = `Aquí tienes la transcripción detallada y el análisis exhaustivo de una junta de Consejo Técnico Escolar:
 
-Tu tarea es leer esta transcripción y redactar un acta de trabajo o junta ejecutiva (relatoría).
-La relatoría debe extraer lo más importante de la junta, organizada de forma coherente y ejecutiva. Dale un carácter profesional de acta de trabajo.
-Además, extrae los acuerdos y compromisos principales.
-TIENES PROHIBIDO extraer más de 10 acuerdos.
+--- INICIO DEL ANÁLISIS ---
+${transcripcionDetallada}
+--- FIN DEL ANÁLISIS ---
 
-Devuelve tu respuesta ESTRICTAMENTE en este formato JSON (sin texto adicional ni comillas extra):
-{
-  "resumenGeneral": "Aquí va el texto completo de la relatoría ejecutiva. Usa dobles saltos de línea (\\n\\n) para separar párrafos.",
-  "acuerdos": [
-    "Acuerdo 1...",
-    "Acuerdo 2..."
-  ]
-}
-Si no hubo ningún acuerdo explícito, devuelve el arreglo vacío [].`;
+Tu tarea es redactar el Acta de la Junta con una forma sumamente FORMAL, PROFESIONAL y BIEN REDACTADA.
+Es crucial que NO dejes escapar NINGÚN elemento de la junta. La redacción (resumenGeneral) debe ser MUY EXTENSA, capturando a la perfección todos los temas, discusiones, contextos y conclusiones a las que se llegaron a lo largo de las horas de reunión.
+Utiliza múltiples párrafos separados por dobles saltos de línea (\\n\\n) para estructurar el documento.
 
-                let iaData = { resumenGeneral: "", acuerdos: [] };
-                
+Además, extrae la lista de acuerdos/compromisos y los temas principales tratados.
+
+Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
+
+                let iaData = { resumenGeneral: "", acuerdos: [], temas: [] };
                 try {
-                    const resultFinal = await model.generateContent(promptFinal);
-                    let textFinal = resultFinal.response.text();
+                    const resultStep2 = await modelStep2.generateContent([{ text: promptStep2 }]);
+                    let textFinal = resultStep2.response.text();
                     
-                    // Limpiar markdown tags y parsear JSON
+                    // Limpiar markdown si Gemini lo envuelve en ```json ... ``` a pesar del responseMimeType
                     textFinal = textFinal.replace(/```json/gi, '').replace(/```/g, '').trim();
                     const parsed = JSON.parse(textFinal);
                     
-                    if (parsed.resumenGeneral) {
-                        iaData.resumenGeneral = parsed.resumenGeneral;
-                    } else {
-                        iaData.resumenGeneral = "Error estructurando la relatoría.";
-                    }
+                    if (parsed.resumenGeneral) iaData.resumenGeneral = parsed.resumenGeneral;
+                    else iaData.resumenGeneral = "Error estructurando la relatoría.";
 
-                    if (parsed.acuerdos && Array.isArray(parsed.acuerdos)) {
-                        iaData.acuerdos = parsed.acuerdos.slice(0, 10);
-                    }
+                    if (parsed.acuerdos && Array.isArray(parsed.acuerdos)) iaData.acuerdos = parsed.acuerdos;
+                    if (parsed.temas && Array.isArray(parsed.temas)) iaData.temas = parsed.temas;
                 } catch (e) {
-                    console.error(`[IA] Error extrayendo acta o parseando JSON en tarea ${taskId}:`, e);
+                    console.error("[IA] Error en Paso 2 (Redacción Acta):", e);
+                    throw new Error("Fallo al redactar el acta final. " + e.message);
                 }
 
-                console.log(`[IA] Tarea ${taskId} finalizada exitosamente con segmentación de tiempo.`);
+                console.log(`[IA] Tarea ${taskId} finalizada exitosamente con el nuevo flujo de 2 pasos.`);
                 
                 audioJobs.set(taskId, { status: 'completed', data: iaData });
 
