@@ -672,8 +672,6 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         const tempFilePath = path.join(os.tmpdir(), `audio_${taskId}_${i}.${extension}`);
                         
                         fs.writeFileSync(tempFilePath, base64Data, 'base64');
-                        base64Data = null; 
-                        
                         console.log(`[IA] Guardado archivo temporal (SYNC): ${tempFilePath} (${mimeType})`);
 
                         let durationSeconds = 0;
