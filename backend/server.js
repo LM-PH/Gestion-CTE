@@ -491,7 +491,8 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
 
         // === PROCESAMIENTO EN SEGUNDO PLANO (Async, sin bloquear la respuesta) ===
         (async () => {
-            const uploadedFiles = [];
+                            const uploadedFiles = [];
+                let totalInlineBytes = 0;
             try {
                 const { SchemaType } = require("@google/generative-ai");
                 const mm = require("music-metadata");
@@ -620,7 +621,8 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         } catch(e) { console.warn("[IA] Error leyendo duración de audio:", e.message); }
 
                         const stats = fs.statSync(tempFilePath);
-                        if (stats.size < 15 * 1024 * 1024) {
+                        if (stats.size + totalInlineBytes < 15 * 1024 * 1024) {
+                            totalInlineBytes += stats.size;
                             await setAudioJob(taskId, { status: 'processing', progress: `Preparando audio de parte ${i + 1} de ${segmentos.length}...` });
                             const b64 = fs.readFileSync(tempFilePath, { encoding: 'base64' });
                             uploadedFiles.push({ durationSeconds, inlineData: { mimeType: mimeType, data: b64 } });
@@ -680,10 +682,31 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                             if (metadata.format && metadata.format.duration) durationSeconds = metadata.format.duration;
                         } catch(e) { console.warn("[IA] Error leyendo duración de audio:", e.message); }
 
-                        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
-                        
-                        uploadedFiles.push({ durationSeconds, inlineData: { mimeType: mimeType, data: base64Data } });
-                        console.log(`[IA] Audio procesado en memoria (inline) flujo normal.`);
+                        const base64Bytes = Math.floor(base64Data.length * 0.75);
+                        if (base64Bytes + totalInlineBytes < 15 * 1024 * 1024) {
+                            totalInlineBytes += base64Bytes;
+                            try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                            uploadedFiles.push({ durationSeconds, inlineData: { mimeType: mimeType, data: base64Data } });
+                            console.log(`[IA] Audio procesado en memoria (inline) flujo normal. Total inline bytes: ${totalInlineBytes}`);
+                        } else {
+                            await setAudioJob(taskId, { status: 'processing', progress: `Subiendo parte ${i + 1} de ${segmentos.length} a Google IA (File API)...` });
+                            const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+                                mimeType: mimeType,
+                                displayName: `Audio CTE ${reunionId} - Parte ${i}`
+                            });
+                            try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                            
+                            let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                            await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
+                            while (fileStatus.state === "PROCESSING") {
+                                await new Promise((resolve) => setTimeout(resolve, 5000));
+                                fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                            }
+                            if (fileStatus.state === "FAILED") {
+                                throw new Error("El archivo falló al ser procesado por Google Gemini.");
+                            }
+                            uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        }
                         
                     } else {
                         continue;
