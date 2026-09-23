@@ -613,36 +613,39 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         fs.unlinkSync(assembledPath); // Limpiar ensamblado original
                         console.log(`[IA] Guardado archivo temporal (STREAM): ${tempFilePath} (${mimeType})`);
                         
-                        // === SUBIR A GEMINI ===
-                        await setAudioJob(taskId, { status: 'processing', progress: `Subiendo parte ${i + 1} de ${segmentos.length} a Google IA...` });
-                        const uploadResponse = await fileManager.uploadFile(tempFilePath, {
-                            mimeType: mimeType,
-                            displayName: `Audio CTE ${reunionId} - Parte ${i}`
-                        });
-                        
                         let durationSeconds = 0;
                         try {
                             const metadata = await mm.parseFile(tempFilePath);
                             if (metadata.format && metadata.format.duration) durationSeconds = metadata.format.duration;
                         } catch(e) { console.warn("[IA] Error leyendo duración de audio:", e.message); }
 
-                        try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
-                        
-                        console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
-                        
-                        let fileStatus = await fileManager.getFile(uploadResponse.file.name);
-                        await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
-                        while (fileStatus.state === "PROCESSING") {
-                            console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
-                            await new Promise((resolve) => setTimeout(resolve, 5000));
-                            fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        const stats = fs.statSync(tempFilePath);
+                        if (stats.size < 15 * 1024 * 1024) {
+                            await setAudioJob(taskId, { status: 'processing', progress: `Preparando audio de parte ${i + 1} de ${segmentos.length}...` });
+                            const b64 = fs.readFileSync(tempFilePath, { encoding: 'base64' });
+                            uploadedFiles.push({ durationSeconds, inlineData: { mimeType: mimeType, data: b64 } });
+                            try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                            console.log(`[IA] Audio procesado en memoria (inline) ${stats.size} bytes`);
+                        } else {
+                            await setAudioJob(taskId, { status: 'processing', progress: `Subiendo parte ${i + 1} de ${segmentos.length} a Google IA...` });
+                            const uploadResponse = await fileManager.uploadFile(tempFilePath, {
+                                mimeType: mimeType,
+                                displayName: `Audio CTE ${reunionId} - Parte ${i}`
+                            });
+                            try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
+                            
+                            let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                            await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
+                            while (fileStatus.state === "PROCESSING") {
+                                console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
+                                await new Promise((resolve) => setTimeout(resolve, 5000));
+                                fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                            }
+                            if (fileStatus.state === "FAILED") {
+                                throw new Error("El archivo falló al ser procesado por Google Gemini.");
+                            }
+                            uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
                         }
-
-                        if (fileStatus.state === "FAILED") {
-                            throw new Error("El archivo falló al ser procesado por Google Gemini.");
-                        }
-
-                        uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
                         
                     } else if (seg.audioData) {
                         // Flujo antiguo para archivos pequeños no fragmentados
@@ -671,11 +674,6 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         
                         console.log(`[IA] Guardado archivo temporal (SYNC): ${tempFilePath} (${mimeType})`);
 
-                        const uploadResponse = await fileManager.uploadFile(tempFilePath, {
-                            mimeType: mimeType,
-                            displayName: `Audio CTE ${reunionId} - Parte ${i}`
-                        });
-                        
                         let durationSeconds = 0;
                         try {
                             const metadata = await mm.parseFile(tempFilePath);
@@ -684,21 +682,8 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
 
                         try { if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath); } catch (e) {}
                         
-                        console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
-                        
-                        let fileStatus = await fileManager.getFile(uploadResponse.file.name);
-                        await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
-                        while (fileStatus.state === "PROCESSING") {
-                            console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
-                            await new Promise((resolve) => setTimeout(resolve, 5000));
-                            fileStatus = await fileManager.getFile(uploadResponse.file.name);
-                        }
-
-                        if (fileStatus.state === "FAILED") {
-                            throw new Error("El archivo falló al ser procesado por Google Gemini.");
-                        }
-
-                        uploadedFiles.push({ durationSeconds, fileData: { fileUri: uploadResponse.file.uri, mimeType: uploadResponse.file.mimeType } });
+                        uploadedFiles.push({ durationSeconds, inlineData: { mimeType: mimeType, data: base64Data } });
+                        console.log(`[IA] Audio procesado en memoria (inline) flujo normal.`);
                         
                     } else {
                         continue;
@@ -720,7 +705,7 @@ Escucha y procesa los archivos completos. Escribe todo lo necesario para que no 
 
                 const payloadStep1 = [
                     { text: promptStep1 },
-                    ...uploadedFiles.map(f => ({ fileData: f.fileData }))
+                    ...uploadedFiles.map(f => f.inlineData ? { inlineData: f.inlineData } : { fileData: f.fileData })
                 ];
 
                 let transcripcionDetallada = "";
@@ -806,12 +791,14 @@ Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
 
                 // Opcional: Limpiar archivos en la nube de Google tras finalizar (recomendado para privacidad y espacio)
                 for (let uf of uploadedFiles) {
-                    const fname = uf.fileData.fileUri.split('/').pop();
-                    try {
-                        await fileManager.deleteFile(`files/${fname}`);
-                        console.log(`[IA] Archivo remoto files/${fname} eliminado.`);
-                    } catch(delErr) {
-                        console.warn(`[IA] No se pudo eliminar files/${fname}: ${delErr.message}`);
+                    if (uf.fileData && uf.fileData.fileUri) {
+                        const fname = uf.fileData.fileUri.split('/').pop();
+                        try {
+                            await fileManager.deleteFile(`files/${fname}`);
+                            console.log(`[IA] Archivo remoto files/${fname} eliminado.`);
+                        } catch(delErr) {
+                            console.warn(`[IA] No se pudo eliminar files/${fname}: ${delErr.message}`);
+                        }
                     }
                 }
 
