@@ -614,6 +614,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         console.log(`[IA] Guardado archivo temporal (STREAM): ${tempFilePath} (${mimeType})`);
                         
                         // === SUBIR A GEMINI ===
+                        await setAudioJob(taskId, { status: 'processing', progress: `Subiendo parte ${i + 1} de ${segmentos.length} a Google IA...` });
                         const uploadResponse = await fileManager.uploadFile(tempFilePath, {
                             mimeType: mimeType,
                             displayName: `Audio CTE ${reunionId} - Parte ${i}`
@@ -630,6 +631,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
                         
                         let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
                         while (fileStatus.state === "PROCESSING") {
                             console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
                             await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -685,6 +687,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                         console.log(`[IA] Archivo subido a Gemini. URI: ${uploadResponse.file.uri}`);
                         
                         let fileStatus = await fileManager.getFile(uploadResponse.file.name);
+                        await setAudioJob(taskId, { status: 'processing', progress: `Google IA procesando parte ${i + 1} de ${segmentos.length} (esto puede tardar varios minutos)...` });
                         while (fileStatus.state === "PROCESSING") {
                             console.log(`[IA] Esperando procesamiento de ${uploadResponse.file.name}...`);
                             await new Promise((resolve) => setTimeout(resolve, 5000));
