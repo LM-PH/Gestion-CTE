@@ -710,9 +710,23 @@ Tu trabajo es generar una BITÁCORA MINUTO A MINUTO, ridículamente detallada de
 - No omitas información por considerarla trivial; documenta la sesión completa de principio a fin de manera exhaustiva y cronológica.`;
 
                 const payloadStep1 = [
-                    { text: promptStep1 },
-                    ...uploadedFiles.map(f => f.inlineData ? { inlineData: f.inlineData } : { fileData: f.fileData })
+                    { text: promptStep1 }
                 ];
+                
+                uploadedFiles.forEach((f, idx) => {
+                    payloadStep1.push({ text: `
+--- INICIO DE AUDIO SECUENCIAL ${idx + 1} DE ${uploadedFiles.length} ---
+Por favor, escucha y transcribe minuciosamente esta parte:` });
+                    if (f.inlineData) {
+                        payloadStep1.push({ inlineData: f.inlineData });
+                    } else {
+                        payloadStep1.push({ fileData: f.fileData });
+                    }
+                });
+                
+                payloadStep1.push({ text: `
+--- FIN DE LOS AUDIOS ---
+Asegúrate de haber procesado y unificado la información de LOS ${uploadedFiles.length} AUDIOS en tu relatoría súper detallada.` });
 
                 let transcripcionDetallada = "";
                 try {
