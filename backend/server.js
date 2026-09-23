@@ -699,10 +699,15 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                 // Usaremos Gemini 1.5 Pro que tiene amplio contexto
                 const modelStep1 = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
 
-                const promptStep1 = `Eres un transcriptor y secretario experto. A continuación recibes los audios completos de una junta de Consejo Técnico Escolar (pueden ser uno o varios archivos de audio secuenciales, cubriendo múltiples horas de reunión).
-Realiza una transcripción y relatoría CRONOLÓGICA y EXTREMADAMENTE DETALLADA de TODO lo que se habla en TODOS los archivos de audio adjuntos. 
-No hagas un resumen breve. Necesito que describas minuciosamente cada tema abordado, las aportaciones específicas de los docentes, los debates, las problemáticas y los acuerdos. Si hay varios audios, intégralos de manera secuencial y exhaustiva.
-Escucha y procesa los archivos completos, de principio a fin. Escribe todas las páginas de texto que sean necesarias para que no se pierda NINGÚN detalle de la sesión.`;
+                const promptStep1 = `Eres un transcriptor y secretario experto. A continuación recibes los audios completos de una junta de Consejo Técnico Escolar (pueden ser horas de grabación continua).
+
+REGLA DE ORO: ESTÁ ESTRICTAMENTE PROHIBIDO RESUMIR. 
+
+Tu trabajo es generar una BITÁCORA MINUTO A MINUTO, ridículamente detallada de absolutamente TODO lo que se hable. 
+- Transcribe las ideas, debates, quejas, anécdotas y propuestas de cada uno de los docentes.
+- Por cada tema abordado, debes generar múltiples párrafos explicando a fondo el contexto y las participaciones.
+- Si la junta duró 3 horas, tu texto resultante debe ser inmenso (miles de palabras). 
+- No omitas información por considerarla trivial; documenta la sesión completa de principio a fin de manera exhaustiva y cronológica.`;
 
                 const payloadStep1 = [
                     { text: promptStep1 },
@@ -753,19 +758,23 @@ Escucha y procesa los archivos completos, de principio a fin. Escribe todas las 
                     }
                 });
 
-                const promptStep2 = `Aquí tienes la transcripción detallada y el análisis exhaustivo de una junta de Consejo Técnico Escolar:
+                                const promptStep2 = `Aquí tienes la transcripción exhaustiva de una junta de Consejo Técnico Escolar generada a partir de los audios:
 
---- INICIO DEL ANÁLISIS ---
+--- INICIO DE LA TRANSCRIPCIÓN ---
 ${transcripcionDetallada}
---- FIN DEL ANÁLISIS ---
+--- FIN DE LA TRANSCRIPCIÓN ---
 
-Tu tarea es redactar el Acta de la Junta con una forma sumamente FORMAL, PROFESIONAL y BIEN REDACTADA.
-Es crucial que NO dejes escapar NINGÚN elemento de la junta. La redacción (resumenGeneral) debe ser MUY EXTENSA, capturando a la perfección todos los temas, discusiones, contextos y conclusiones a las que se llegaron a lo largo de las horas de reunión.
-Utiliza múltiples párrafos separados por dobles saltos de línea (\\n\\n) para estructurar el documento.
+Tu tarea es redactar el Acta Formal de la Junta. 
 
-Además, extrae la lista de acuerdos/compromisos y los temas principales tratados.
+REGLAS ESTRICTAS PARA LA REDACCIÓN (campo "resumenGeneral"):
+1. ¡PROHIBIDO RESUMIR O RECORTAR! Aunque el campo se llame "resumenGeneral", debes usarlo para volcar TODA LA RELATORÍA COMPLETA.
+2. EXTENSIÓN MASIVA: Si la junta duró horas, es INACEPTABLE entregar solo 5 o 6 párrafos. Debes generar un documento GIGANTESCO (MÍNIMO 15 a 30 párrafos si la transcripción es larga).
+3. PROFUNDIDAD: Por CADA tema que se menciona en la transcripción, dedica al menos 3 a 4 párrafos desarrollando a fondo: qué se dijo, qué maestro opinó qué cosa, cuáles fueron los debates, problemáticas, anécdotas y acuerdos de ese tema en específico.
+4. FORMATO: Usa un tono muy formal y profesional. Separa todo con dobles saltos de línea (\\n\\n) para que sea legible.
 
-Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
+El acta final debe ser un reflejo exacto y minucioso de todo el tiempo invertido en la junta. No dejes nada fuera.
+
+Además, extrae la lista de acuerdos/compromisos y los temas principales. Devuelve ESTRICTAMENTE en formato JSON.`;
 
                 let iaData = { resumenGeneral: "", acuerdos: [], temas: [] };
                 try {
