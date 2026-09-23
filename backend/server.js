@@ -337,7 +337,25 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GOOGLE_API_KEY);
 
 // Memoria para almacenar el estado de las tareas de IA (Polling)
-const audioJobs = new Map();
+// Funciones auxiliares para gestionar el estado en MongoDB
+async function setAudioJob(taskId, data) {
+    if (db) {
+        await db.collection('audio_jobs').updateOne({ taskId }, { $set: data }, { upsert: true });
+    }
+}
+
+async function getAudioJob(taskId) {
+    if (db) {
+        return await db.collection('audio_jobs').findOne({ taskId });
+    }
+    return null;
+}
+
+async function deleteAudioJob(taskId) {
+    if (db) {
+        await db.collection('audio_jobs').deleteOne({ taskId });
+    }
+}
 
 app.post('/api/upload-chunk', (req, res) => {
     try {
@@ -469,7 +487,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
         res.json({ success: true, taskId, status: 'processing', creditsRemaining: isAdmin ? 'Ilimitados' : (user.credits - 1) });
         
         // Registrar tarea en memoria
-        audioJobs.set(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });
+        await setAudioJob(taskId, { status: 'processing', progress: 'Iniciando...', data: null, error: null });
 
         // === PROCESAMIENTO EN SEGUNDO PLANO (Async, sin bloquear la respuesta) ===
         (async () => {
@@ -478,7 +496,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                 const { SchemaType } = require("@google/generative-ai");
                 const mm = require("music-metadata");
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Subiendo archivos y procesando con IA...' });
+                await setAudioJob(taskId, { status: 'processing', progress: 'Subiendo archivos y procesando con IA...' });
                 
                 // Inicializar Gemini Pro para análisis profundo
                 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
@@ -687,7 +705,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
                     throw new Error("Formato de audio no soportado o vacío.");
                 }
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Paso 1/2: Analizando y transcribiendo TODO el audio (esto puede tomar un par de minutos)...' });
+                await setAudioJob(taskId, { status: 'processing', progress: 'Paso 1/2: Analizando y transcribiendo TODO el audio (esto puede tomar un par de minutos)...' });
                 console.log(`[IA] Enviando ${uploadedFiles.length} URIs a Gemini para transcripción...`);
 
                 // Usaremos Gemini 1.5 Pro que tiene amplio contexto
@@ -711,7 +729,7 @@ Escucha y procesa los archivos completos. Escribe todo lo necesario para que no 
                     throw new Error("Fallo al transcribir los audios. " + e.message);
                 }
 
-                audioJobs.set(taskId, { status: 'processing', progress: 'Paso 2/2: Redactando el acta formal, extensa y ejecutiva...' });
+                await setAudioJob(taskId, { status: 'processing', progress: 'Paso 2/2: Redactando el acta formal, extensa y ejecutiva...' });
                 console.log(`[IA] Transcripción completada. Longitud: ${transcripcionDetallada.length} caracteres. Iniciando redacción del acta...`);
 
                 const modelStep2 = genAI.getGenerativeModel({ 
@@ -781,7 +799,7 @@ Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
 
                 console.log(`[IA] Tarea ${taskId} finalizada exitosamente con el nuevo flujo de 2 pasos.`);
                 
-                audioJobs.set(taskId, { status: 'completed', data: iaData });
+                await setAudioJob(taskId, { status: 'completed', data: iaData });
 
                 // Opcional: Limpiar archivos en la nube de Google tras finalizar (recomendado para privacidad y espacio)
                 for (let uf of uploadedFiles) {
@@ -796,7 +814,7 @@ Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
 
             } catch (error) {
                 console.error(`[IA] ERROR en tarea ${taskId}:`, error);
-                audioJobs.set(taskId, { 
+                await setAudioJob(taskId, { 
                     status: 'error', 
                     error: error.message || 'Error desconocido procesando audio.' 
                 });
@@ -819,9 +837,9 @@ Devuelve tu respuesta ESTRICTAMENTE en formato JSON.`;
 
 // GET /api/procesar-audio/status/:taskId
 // Endpoint para que el Frontend consulte cómo va su tarea asíncrona
-app.get('/api/procesar-audio/status/:taskId', (req, res) => {
+app.get('/api/procesar-audio/status/:taskId', async (req, res) => {
     const { taskId } = req.params;
-    const job = audioJobs.get(taskId);
+    const job = await getAudioJob(taskId);
     
     if (!job) {
         return res.status(404).json({ error: 'Tarea no encontrada o expirada.' });
@@ -830,11 +848,11 @@ app.get('/api/procesar-audio/status/:taskId', (req, res) => {
     if (job.status === 'completed') {
         // Enviar resultado final
         res.json({ success: true, status: 'completed', data: job.data });
-        // Limpiar memoria para no llenar la RAM
-        audioJobs.delete(taskId);
+        // Limpiar de la BD
+        await deleteAudioJob(taskId);
     } else if (job.status === 'error') {
         res.json({ success: false, status: 'error', error: job.error });
-        audioJobs.delete(taskId);
+        await deleteAudioJob(taskId);
     } else {
         // Aún procesando
         res.json({ success: true, status: 'processing', progress: job.progress });
