@@ -151,7 +151,7 @@ class ReunionesModule {
                                this.audioStream.getTracks().some(track => track.readyState === 'live');
                                
         if (!isStreamActive) {
-            this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.audioStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true, noiseSuppression: true } });
         }
     }
 
@@ -162,7 +162,15 @@ class ReunionesModule {
             // Asegurar que el stream de audio esté re-inicializado y activo (por si se suspendió offline)
             await this.initAudioStream();
             
-            this.mediaRecorder = new MediaRecorder(this.audioStream);
+                        let options;
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 16000 };
+            }
+            try {
+                this.mediaRecorder = new MediaRecorder(this.audioStream, options);
+            } catch(e) {
+                this.mediaRecorder = new MediaRecorder(this.audioStream); // Fallback
+            }
             
             this.mediaRecorder.ondataavailable = e => {
                 if (e.data.size > 0) this.audioChunks.push(e.data);
