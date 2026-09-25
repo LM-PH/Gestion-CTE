@@ -27,9 +27,23 @@ const dbName = 'cte_inteligente';
 let db;
 
 MongoClient.connect(mongoUri)
-    .then(client => {
+    .then(async client => {
         db = client.db(dbName);
         console.log(`Conectado a MongoDB: ${dbName}`);
+        
+        // --- INICIO MIGRACIÓN AUTOMÁTICA DE CRÉDITOS ---
+        try {
+            const result = await db.collection('users').updateMany(
+                { credits: 0 },
+                { $set: { credits: 1 } }
+            );
+            if (result.modifiedCount > 0) {
+                console.log(`[Migración] Se regaló 1 crédito inicial a ${result.modifiedCount} usuarios existentes.`);
+            }
+        } catch (e) {
+            console.error("[Migración] Error actualizando créditos:", e);
+        }
+        // --- FIN MIGRACIÓN AUTOMÁTICA ---
     })
     .catch(err => console.error("Error conectando a MongoDB:", err));
 
@@ -67,7 +81,7 @@ app.post('/api/auth/google', async (req, res) => {
                 email: payload.email,
                 name: payload.name,
                 picture: payload.picture,
-                credits: payload.email === 'zlagustin10@gmail.com' ? 999 : 0,
+                credits: payload.email === 'zlagustin10@gmail.com' ? 999 : 1,
                 role: payload.email === 'zlagustin10@gmail.com' ? 'admin' : 'user',
                 createdAt: new Date()
             };
