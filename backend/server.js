@@ -464,7 +464,7 @@ app.post('/api/procesar-audio', authMiddleware, async (req, res) => {
         }
         // --- FIN VERIFICACIÓN ---
 
-        const { reunionId, segmentos, agenda } = req.body;
+        const { reunionId, segmentos, agenda, nivelDetalle } = req.body;
         console.log(`[IA] Recibida petición para reunión ${reunionId}. Segmentos: ${segmentos?.length}`);
 
         if (!process.env.GOOGLE_API_KEY) {
@@ -793,7 +793,24 @@ Asegúrate de haber procesado y unificado la información de LOS ${uploadedFiles
                     }
                 });
 
-                                const promptStep2 = `Aquí tienes la transcripción exhaustiva de una junta de Consejo Técnico Escolar generada a partir de los audios:
+                                let promptStep2 = "";
+                                if (nivelDetalle === 'resumido') {
+                                    promptStep2 = `Aquí tienes la transcripción de una junta de Consejo Técnico Escolar:
+
+--- INICIO DE LA TRANSCRIPCIÓN ---
+${transcripcionDetallada}
+--- FIN DE LA TRANSCRIPCIÓN ---
+
+Tu tarea es redactar el Acta Formal de la Junta.
+REGLAS PARA LA REDACCIÓN (campo "resumenGeneral"):
+1. Escribe una relatoría clara, concisa y directa de los hechos ocurridos.
+2. No seas excesivamente formal ni rebuscado. Solo expón los puntos más importantes que se trataron.
+3. El acta debe ser un resumen ejecutivo y útil, estructurado en unos pocos párrafos que abarquen lo principal, sin extenderse en detalles o debates menores.
+4. Separa las ideas con dobles saltos de línea (\\n\\n).
+
+Además, extrae la lista de acuerdos/compromisos y los temas principales. Devuelve ESTRICTAMENTE en formato JSON.`;
+                                } else {
+                                    promptStep2 = `Aquí tienes la transcripción exhaustiva de una junta de Consejo Técnico Escolar generada a partir de los audios:
 
 --- INICIO DE LA TRANSCRIPCIÓN ---
 ${transcripcionDetallada}
@@ -805,11 +822,12 @@ REGLAS ESTRICTAS PARA LA REDACCIÓN (campo "resumenGeneral"):
 1. ¡PROHIBIDO RESUMIR O RECORTAR! Aunque el campo se llame "resumenGeneral", debes usarlo para volcar TODA LA RELATORÍA COMPLETA.
 2. EXTENSIÓN MASIVA: Si la junta duró horas, es INACEPTABLE entregar solo 5 o 6 párrafos. Debes generar un documento GIGANTESCO (MÍNIMO 15 a 30 párrafos si la transcripción es larga).
 3. PROFUNDIDAD: Por CADA tema que se menciona en la transcripción, dedica al menos 3 a 4 párrafos desarrollando a fondo: qué se dijo, qué maestro opinó qué cosa, cuáles fueron los debates, problemáticas, anécdotas y acuerdos de ese tema en específico.
-4. FORMATO: Usa un tono muy formal y profesional. Separa todo con dobles saltos de línea (\\n\\n) para que sea legible.
+4. FORMATO: Usa un tono formal pero narra todos los hechos como ocurrieron. Separa todo con dobles saltos de línea (\\n\\n) para que sea legible.
 
 El acta final debe ser un reflejo exacto y minucioso de todo el tiempo invertido en la junta. No dejes nada fuera.
 
 Además, extrae la lista de acuerdos/compromisos y los temas principales. Devuelve ESTRICTAMENTE en formato JSON.`;
+                                }
 
                 let iaData = { resumenGeneral: "", acuerdos: [], temas: [] };
                 try {

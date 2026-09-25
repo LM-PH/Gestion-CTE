@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cte-inteligente-v6';
+const CACHE_NAME = 'cte-inteligente-v7';
 const ASSETS = [
     '/',
     '/index.html',

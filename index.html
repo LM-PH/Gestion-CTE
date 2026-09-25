@@ -385,6 +385,10 @@
                 </button>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     <span id="acta-status-badge" style="font-size: 0.8rem; padding: 4px 10px; border-radius: 20px; font-weight: bold;"></span>
+                    <select id="ia-detail-level" class="input no-print" style="font-size: 0.8rem; padding: 4px 24px 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-main); height: 32px;">
+                        <option value="detallado">Relatoría Detallada</option>
+                        <option value="resumido">Puntos Importantes (Breve)</option>
+                    </select>
                     <button class="btn btn-sm no-print" id="btn-ia-magic" style="background:#8b5cf6; color:white;" onclick="historialModule.procesarConIA()">
                         <i class="fa-solid fa-wand-magic-sparkles"></i> Redactar con IA
                     </button>

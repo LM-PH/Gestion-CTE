@@ -300,6 +300,9 @@ class HistorialModule {
 
             this.btnIaMagic.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Iniciando análisis...';
             
+            const detailSelect = document.getElementById('ia-detail-level');
+            const nivelDetalle = detailSelect ? detailSelect.value : 'detallado';
+
             // Llamada al backend
             const response = await fetch(`${window.ENV.API_URL}/api/procesar-audio`, {
                 method: 'POST',
@@ -307,7 +310,7 @@ class HistorialModule {
                     'Content-Type': 'application/json',
                     ...(window.authModule ? window.authModule.getAuthHeaders() : {})
                 },
-                body: JSON.stringify({ reunionId, segmentos: processedSegmentos, agenda: agendaText })
+                body: JSON.stringify({ reunionId, segmentos: processedSegmentos, agenda: agendaText, nivelDetalle })
             });
 
             if (!response.ok) {
